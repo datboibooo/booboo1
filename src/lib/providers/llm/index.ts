@@ -1,39 +1,31 @@
-import { LLMProvider } from "./types";
-import { OpenAIProvider } from "./openai";
-import { AnthropicProvider } from "./anthropic";
+import { LLMProvider, AIProviderType } from "./types";
+import { VercelAIProvider, createAIProvider } from "./vercel-ai";
 
 export * from "./types";
-export { OpenAIProvider } from "./openai";
-export { AnthropicProvider } from "./anthropic";
+export { VercelAIProvider, createAIProvider } from "./vercel-ai";
 
-export type LLMProviderType = "openai" | "anthropic";
+// Backwards compatibility exports
+export type LLMProviderType = AIProviderType;
 
 let cachedProvider: LLMProvider | null = null;
+let cachedProviderType: AIProviderType | null = null;
 
-export function getLLMProvider(type?: LLMProviderType): LLMProvider {
-  const providerType = type || (process.env.LLM_PROVIDER as LLMProviderType) || "openai";
+export function getLLMProvider(type?: AIProviderType): LLMProvider {
+  const providerType = type || (process.env.AI_PROVIDER as AIProviderType) || "openai";
 
   // Return cached if same type
-  if (cachedProvider && cachedProvider.name === providerType) {
+  if (cachedProvider && cachedProviderType === providerType) {
     return cachedProvider;
   }
 
-  switch (providerType) {
-    case "openai":
-      cachedProvider = new OpenAIProvider();
-      break;
-    case "anthropic":
-      cachedProvider = new AnthropicProvider();
-      break;
-    default:
-      throw new Error(`Unknown LLM provider: ${providerType}`);
-  }
+  cachedProvider = createAIProvider(providerType);
+  cachedProviderType = providerType;
 
   return cachedProvider;
 }
 
 export function isLLMConfigured(): boolean {
-  const provider = process.env.LLM_PROVIDER || "openai";
+  const provider = process.env.AI_PROVIDER || "openai";
 
   if (provider === "openai") {
     return !!process.env.OPENAI_API_KEY;
@@ -42,4 +34,10 @@ export function isLLMConfigured(): boolean {
   }
 
   return false;
+}
+
+// Clear the cache (useful for testing)
+export function clearProviderCache(): void {
+  cachedProvider = null;
+  cachedProviderType = null;
 }

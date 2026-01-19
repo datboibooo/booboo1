@@ -40,13 +40,21 @@ export interface LLMProvider {
   ): Promise<z.infer<T>>;
 }
 
-export const LLM_MODELS = {
+// Vercel AI SDK supported providers
+export type AIProviderType = "openai" | "anthropic";
+
+export const AI_MODELS = {
   openai: {
     default: "gpt-4o",
     fast: "gpt-4o-mini",
+    reasoning: "o1-mini",
   },
   anthropic: {
     default: "claude-sonnet-4-20250514",
     fast: "claude-3-5-haiku-20241022",
+    powerful: "claude-opus-4-20250514",
   },
 } as const;
+
+// Backwards compatibility
+export const LLM_MODELS = AI_MODELS;
