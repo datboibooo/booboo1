@@ -17,13 +17,40 @@ import { cn } from "@/lib/utils";
 interface LeadCardProps {
   lead: LeadRecord;
   isSelected?: boolean;
+  isFocused?: boolean;
   onSelect?: () => void;
   onStatusChange?: (status: LeadRecord["status"]) => void;
+}
+
+// Calculate evidence quality score (0-100)
+function getEvidenceQuality(lead: LeadRecord): { score: number; label: string; color: string } {
+  let score = 0;
+
+  // Number of evidence sources (up to 40 points)
+  score += Math.min(lead.evidenceUrls.length * 10, 40);
+
+  // Number of signals triggered (up to 30 points)
+  score += Math.min(lead.triggeredSignals.length * 10, 30);
+
+  // Has evidence snippets (up to 15 points)
+  const snippetCount = lead.evidenceSnippets.filter(s => s && s.length > 50).length;
+  score += Math.min(snippetCount * 5, 15);
+
+  // Has person name mentioned (15 points)
+  if (lead.personName) score += 15;
+
+  const clampedScore = Math.min(100, score);
+
+  if (clampedScore >= 80) return { score: clampedScore, label: "Strong", color: "text-[--score-excellent]" };
+  if (clampedScore >= 60) return { score: clampedScore, label: "Good", color: "text-[--score-good]" };
+  if (clampedScore >= 40) return { score: clampedScore, label: "Fair", color: "text-[--score-fair]" };
+  return { score: clampedScore, label: "Weak", color: "text-[--score-low]" };
 }
 
 export function LeadCard({
   lead,
   isSelected = false,
+  isFocused = false,
   onSelect,
   onStatusChange,
 }: LeadCardProps) {
@@ -44,11 +71,14 @@ export function LeadCard({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const evidenceQuality = getEvidenceQuality(lead);
+
   return (
     <div
       className={cn(
         "group relative rounded-xl border border-[--border] bg-[--background-secondary] p-4 transition-all hover:border-[--accent]/50",
-        isSelected && "border-[--accent] ring-1 ring-[--accent]/20"
+        isSelected && "border-[--accent] ring-1 ring-[--accent]/20",
+        isFocused && !isSelected && "border-[--accent]/70 ring-2 ring-[--accent]/10"
       )}
     >
       {/* Top Row: Company Info & Score */}
@@ -106,11 +136,29 @@ export function LeadCard({
         <p className="text-sm">{lead.whyNow}</p>
       </div>
 
-      {/* Evidence */}
-      <div className="mt-3 flex items-center gap-2 text-xs text-[--foreground-muted]">
-        <span>{lead.evidenceUrls.length} evidence sources</span>
-        <span>•</span>
-        <span>{lead.targetTitles.slice(0, 2).join(", ")}</span>
+      {/* Evidence Quality */}
+      <div className="mt-3 flex items-center justify-between text-xs">
+        <div className="flex items-center gap-2 text-[--foreground-muted]">
+          <span>{lead.evidenceUrls.length} sources</span>
+          <span>•</span>
+          <span className="truncate max-w-[120px]">{lead.targetTitles.slice(0, 2).join(", ")}</span>
+        </div>
+        <div className={cn("flex items-center gap-1 font-medium", evidenceQuality.color)}>
+          <div className="flex gap-0.5">
+            {[...Array(4)].map((_, i) => (
+              <div
+                key={i}
+                className={cn(
+                  "h-1.5 w-1.5 rounded-full",
+                  i < Math.ceil(evidenceQuality.score / 25)
+                    ? evidenceQuality.color.replace("text-", "bg-")
+                    : "bg-[--border]"
+                )}
+              />
+            ))}
+          </div>
+          <span className="text-[10px]">{evidenceQuality.label}</span>
+        </div>
       </div>
 
       {/* Actions */}

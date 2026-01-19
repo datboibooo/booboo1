@@ -12,6 +12,11 @@ import {
   FileText,
   Link2,
   Clock,
+  Activity,
+  Bookmark,
+  SkipForward,
+  Mail,
+  Search,
 } from "lucide-react";
 import { LeadRecord } from "@/lib/schemas";
 import { Badge } from "@/components/ui/badge";
@@ -19,12 +24,39 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn, getSourceTypeLabel, formatRelativeTime } from "@/lib/utils";
+import {
+  getLeadActivity,
+  logActivity,
+  getActivityLabel,
+  type ActivityEntry,
+  type ActivityType,
+} from "@/lib/store";
 
 interface CompanyBriefProps {
   lead: LeadRecord;
   onClose?: () => void;
   onWatchToggle?: () => void;
   isWatched?: boolean;
+}
+
+// Get icon for activity type
+function getActivityIcon(type: ActivityType) {
+  switch (type) {
+    case "lead_saved":
+      return Bookmark;
+    case "lead_skipped":
+      return SkipForward;
+    case "lead_contacted":
+      return Mail;
+    case "lead_viewed":
+      return Eye;
+    case "opener_copied":
+      return Copy;
+    case "linkedin_searched":
+      return Search;
+    default:
+      return Activity;
+  }
 }
 
 export function CompanyBrief({
@@ -35,18 +67,51 @@ export function CompanyBrief({
 }: CompanyBriefProps) {
   const [copiedOpener, setCopiedOpener] = React.useState<string | null>(null);
   const [copiedQuery, setCopiedQuery] = React.useState(false);
+  const [activities, setActivities] = React.useState<ActivityEntry[]>([]);
+
+  // Load activities and log view
+  React.useEffect(() => {
+    const leadActivities = getLeadActivity(lead.id);
+    setActivities(leadActivities);
+
+    // Log the view
+    logActivity("lead_viewed", {
+      id: lead.id,
+      companyName: lead.companyName,
+      domain: lead.domain,
+    });
+  }, [lead.id, lead.companyName, lead.domain]);
 
   const handleCopyOpener = async (type: "short" | "medium") => {
     const text = type === "short" ? lead.openerShort : lead.openerMedium;
     await navigator.clipboard.writeText(text);
     setCopiedOpener(type);
     setTimeout(() => setCopiedOpener(null), 2000);
+
+    // Log activity
+    const entry = logActivity("opener_copied", {
+      id: lead.id,
+      companyName: lead.companyName,
+      domain: lead.domain,
+    }, { type });
+    setActivities(prev => [entry, ...prev]);
   };
 
   const handleCopyLinkedInQuery = async () => {
     await navigator.clipboard.writeText(lead.linkedinSearchQuery);
     setCopiedQuery(true);
     setTimeout(() => setCopiedQuery(false), 2000);
+  };
+
+  const handleLinkedInSearch = () => {
+    window.open(lead.linkedinSearchUrl, "_blank");
+    // Log activity
+    const entry = logActivity("linkedin_searched", {
+      id: lead.id,
+      companyName: lead.companyName,
+      domain: lead.domain,
+    });
+    setActivities(prev => [entry, ...prev]);
   };
 
   const scoreClass =
@@ -150,6 +215,18 @@ export function CompanyBrief({
             >
               <MessageSquare className="mr-2 h-4 w-4" />
               Outreach
+            </TabsTrigger>
+            <TabsTrigger
+              value="activity"
+              className="border-b-2 border-transparent data-[state=active]:border-[--accent] data-[state=active]:bg-transparent rounded-none"
+            >
+              <Activity className="mr-2 h-4 w-4" />
+              Activity
+              {activities.length > 0 && (
+                <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-[10px]">
+                  {activities.length}
+                </Badge>
+              )}
             </TabsTrigger>
           </TabsList>
         </div>
@@ -275,7 +352,7 @@ export function CompanyBrief({
                 <Button
                   variant="default"
                   size="sm"
-                  onClick={() => window.open(lead.linkedinSearchUrl, "_blank")}
+                  onClick={handleLinkedInSearch}
                   className="gap-2"
                 >
                   <Linkedin className="h-4 w-4" />
@@ -353,6 +430,63 @@ export function CompanyBrief({
                   </p>
                 </div>
               </div>
+            </section>
+          </TabsContent>
+
+          <TabsContent value="activity" className="m-0 p-6">
+            {/* Activity Timeline */}
+            <section>
+              <h3 className="mb-3 text-sm font-medium uppercase tracking-wider text-[--foreground-subtle]">
+                Activity Timeline
+              </h3>
+              {activities.length === 0 ? (
+                <div className="text-center py-8">
+                  <Activity className="h-8 w-8 mx-auto text-[--foreground-subtle] mb-2" />
+                  <p className="text-sm text-[--foreground-muted]">
+                    No activity recorded yet
+                  </p>
+                </div>
+              ) : (
+                <div className="relative">
+                  {/* Timeline line */}
+                  <div className="absolute left-4 top-0 bottom-0 w-px bg-[--border]" />
+
+                  <div className="space-y-4">
+                    {activities.map((activity) => {
+                      const Icon = getActivityIcon(activity.type);
+                      return (
+                        <div
+                          key={activity.id}
+                          className="relative flex items-start gap-4 pl-10"
+                        >
+                          {/* Timeline dot */}
+                          <div className="absolute left-2 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[--background-tertiary] border border-[--border]">
+                            <Icon className="h-3 w-3 text-[--foreground-subtle]" />
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">
+                              {getActivityLabel(activity.type)}
+                            </p>
+                            <p className="text-xs text-[--foreground-muted]">
+                              {formatRelativeTime(activity.timestamp)}
+                            </p>
+                            {activity.metadata && (
+                              <p className="text-xs text-[--foreground-subtle] mt-1">
+                                {activity.metadata.type === "short"
+                                  ? "Short opener"
+                                  : activity.metadata.type === "medium"
+                                  ? "Medium opener"
+                                  : null}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </section>
           </TabsContent>
         </ScrollArea>

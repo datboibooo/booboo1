@@ -27,8 +27,16 @@ import {
   Download,
   SlidersHorizontal,
   AlertCircle,
+  CheckSquare,
+  Square,
+  X,
+  CheckCircle,
+  Keyboard,
 } from "lucide-react";
-import { getStoredLeads, saveLeads, updateLead } from "@/lib/store";
+import { getStoredLeads, saveLeads, updateLead, logActivity } from "@/lib/store";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { KeyboardShortcutsHelp } from "@/components/ui/keyboard-shortcuts-help";
+import { cn } from "@/lib/utils";
 
 export default function DripFeedPage() {
   const [leads, setLeads] = React.useState<LeadRecord[]>([]);
@@ -43,6 +51,13 @@ export default function DripFeedPage() {
     minScore: 0,
     industry: "all",
   });
+
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
+  const [bulkMode, setBulkMode] = React.useState(false);
+
+  // Current focus index for keyboard navigation
+  const [focusIndex, setFocusIndex] = React.useState(0);
 
   const fetchLeads = React.useCallback(async () => {
     try {
@@ -119,6 +134,9 @@ export default function DripFeedPage() {
     leadId: string,
     status: LeadRecord["status"]
   ) => {
+    // Find the lead for logging
+    const lead = leads.find((l) => l.id === leadId);
+
     // Optimistic update
     setLeads((prev) => {
       const updated = prev.map((l) => (l.id === leadId ? { ...l, status } : l));
@@ -135,6 +153,22 @@ export default function DripFeedPage() {
     // Also update in localStorage store
     updateLead(leadId, { status });
 
+    // Log the activity
+    if (lead) {
+      const activityType = status === "saved" ? "lead_saved"
+        : status === "skip" ? "lead_skipped"
+        : status === "contacted" ? "lead_contacted"
+        : null;
+
+      if (activityType) {
+        logActivity(activityType, {
+          id: lead.id,
+          companyName: lead.companyName,
+          domain: lead.domain,
+        });
+      }
+    }
+
     // API call (will work when backend is connected)
     try {
       await fetch(`/api/leads/${leadId}`, {
@@ -145,6 +179,55 @@ export default function DripFeedPage() {
     } catch (error) {
       console.error("Failed to update lead status via API:", error);
     }
+  };
+
+  // Bulk status change
+  const handleBulkStatusChange = async (status: LeadRecord["status"]) => {
+    const idsToUpdate = Array.from(selectedIds);
+    const leadsToUpdate = leads.filter((l) => selectedIds.has(l.id));
+
+    // Optimistic update
+    setLeads((prev) => {
+      const updated = prev.map((l) =>
+        selectedIds.has(l.id) ? { ...l, status } : l
+      );
+      saveLeads(updated);
+      return updated;
+    });
+
+    // Determine activity type
+    const activityType = status === "saved" ? "lead_saved"
+      : status === "skip" ? "lead_skipped"
+      : status === "contacted" ? "lead_contacted"
+      : null;
+
+    // Update each lead and log activity
+    for (const lead of leadsToUpdate) {
+      updateLead(lead.id, { status });
+
+      // Log activity
+      if (activityType) {
+        logActivity(activityType, {
+          id: lead.id,
+          companyName: lead.companyName,
+          domain: lead.domain,
+        });
+      }
+
+      try {
+        await fetch(`/api/leads/${lead.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status }),
+        });
+      } catch (error) {
+        console.error(`Failed to update lead ${lead.id}:`, error);
+      }
+    }
+
+    // Clear selection
+    setSelectedIds(new Set());
+    setBulkMode(false);
   };
 
   const handleExport = () => {
@@ -192,6 +275,60 @@ export default function DripFeedPage() {
     return true;
   });
 
+  // Toggle selection
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  // Keyboard shortcuts
+  const { showHelp, setShowHelp } = useKeyboardShortcuts({
+    onNext: () => {
+      setFocusIndex((prev) => Math.min(prev + 1, filteredLeads.length - 1));
+    },
+    onPrevious: () => {
+      setFocusIndex((prev) => Math.max(prev - 1, 0));
+    },
+    onOpenDetails: () => {
+      if (filteredLeads[focusIndex]) {
+        setSelectedLead(filteredLeads[focusIndex]);
+      }
+    },
+    onCloseDetails: () => {
+      setSelectedLead(null);
+    },
+    onSave: () => {
+      if (bulkMode && selectedIds.size > 0) {
+        handleBulkStatusChange("saved");
+      } else if (filteredLeads[focusIndex]) {
+        handleStatusChange(filteredLeads[focusIndex].id, "saved");
+      }
+    },
+    onSkip: () => {
+      if (bulkMode && selectedIds.size > 0) {
+        handleBulkStatusChange("skip");
+      } else if (filteredLeads[focusIndex]) {
+        handleStatusChange(filteredLeads[focusIndex].id, "skip");
+      }
+    },
+    onSelectAll: () => {
+      setBulkMode(true);
+      setSelectedIds(new Set(filteredLeads.map((l) => l.id)));
+    },
+    onDeselectAll: () => {
+      setSelectedIds(new Set());
+      setBulkMode(false);
+    },
+    enabled: !isLoading,
+  });
+
   const stats = {
     total: leads.length,
     new: leads.filter((l) => l.status === "new").length,
@@ -214,10 +351,21 @@ export default function DripFeedPage() {
         onRefresh={handleRefresh}
         isRefreshing={isRefreshing}
         actions={
-          <Button variant="outline" size="sm" onClick={handleExport}>
-            <Download className="h-4 w-4" />
-            Export
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowHelp(true)}
+              className="gap-1"
+              title="Keyboard shortcuts (?)"
+            >
+              <Keyboard className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleExport}>
+              <Download className="h-4 w-4" />
+              Export
+            </Button>
+          </div>
         }
       />
 
@@ -232,8 +380,74 @@ export default function DripFeedPage() {
         </div>
       )}
 
+      {/* Bulk Actions Bar */}
+      {bulkMode && selectedIds.size > 0 && (
+        <div className="flex items-center gap-4 border-b border-[--accent]/30 bg-[--accent]/10 px-6 py-3">
+          <div className="flex items-center gap-2">
+            <CheckSquare className="h-4 w-4 text-[--accent]" />
+            <span className="text-sm font-medium">
+              {selectedIds.size} selected
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="default"
+              onClick={() => handleBulkStatusChange("saved")}
+              className="h-7 text-xs"
+            >
+              <CheckCircle className="h-3 w-3" />
+              Save All
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleBulkStatusChange("skip")}
+              className="h-7 text-xs"
+            >
+              <X className="h-3 w-3" />
+              Skip All
+            </Button>
+          </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setSelectedIds(new Set());
+              setBulkMode(false);
+            }}
+            className="ml-auto h-7 text-xs"
+          >
+            Cancel
+          </Button>
+        </div>
+      )}
+
       {/* Filters Bar */}
       <div className="flex items-center gap-4 border-b border-[--border] bg-[--background-secondary] px-6 py-3">
+        <div className="flex items-center gap-2">
+          <Button
+            variant={bulkMode ? "default" : "ghost"}
+            size="sm"
+            onClick={() => {
+              setBulkMode(!bulkMode);
+              if (bulkMode) {
+                setSelectedIds(new Set());
+              }
+            }}
+            className="h-8 gap-1"
+          >
+            {bulkMode ? (
+              <CheckSquare className="h-4 w-4" />
+            ) : (
+              <Square className="h-4 w-4" />
+            )}
+            Select
+          </Button>
+        </div>
+
+        <div className="h-4 w-px bg-[--border]" />
+
         <div className="flex items-center gap-2">
           <SlidersHorizontal className="h-4 w-4 text-[--foreground-subtle]" />
           <span className="text-sm text-[--foreground-muted]">Filters:</span>
@@ -338,21 +552,70 @@ export default function DripFeedPage() {
               </div>
             ) : (
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {filteredLeads.map((lead) => (
-                  <LeadCard
-                    key={lead.id}
-                    lead={lead}
-                    isSelected={selectedLead?.id === lead.id}
-                    onSelect={() => setSelectedLead(lead)}
-                    onStatusChange={(status) =>
-                      handleStatusChange(lead.id, status)
-                    }
-                  />
+                {filteredLeads.map((lead, idx) => (
+                  <div key={lead.id} className="relative">
+                    {bulkMode && (
+                      <button
+                        onClick={() => toggleSelect(lead.id)}
+                        className={cn(
+                          "absolute -left-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full border-2 transition-colors",
+                          selectedIds.has(lead.id)
+                            ? "border-[--accent] bg-[--accent] text-white"
+                            : "border-[--border] bg-[--background] hover:border-[--accent]"
+                        )}
+                      >
+                        {selectedIds.has(lead.id) && (
+                          <CheckCircle className="h-4 w-4" />
+                        )}
+                      </button>
+                    )}
+                    <LeadCard
+                      lead={lead}
+                      isSelected={selectedLead?.id === lead.id}
+                      isFocused={focusIndex === idx}
+                      onSelect={() => setSelectedLead(lead)}
+                      onStatusChange={(status) =>
+                        handleStatusChange(lead.id, status)
+                      }
+                    />
+                  </div>
                 ))}
               </div>
             )}
           </div>
         </ScrollArea>
+      </div>
+
+      {/* Keyboard shortcuts hint */}
+      <div className="border-t border-[--border] bg-[--background-secondary] px-6 py-2">
+        <div className="flex items-center justify-between text-xs text-[--foreground-subtle]">
+          <div className="flex items-center gap-4">
+            <span>
+              <kbd className="rounded border border-[--border] bg-[--background] px-1">j</kbd>
+              <span className="mx-1">/</span>
+              <kbd className="rounded border border-[--border] bg-[--background] px-1">k</kbd>
+              {" "}navigate
+            </span>
+            <span>
+              <kbd className="rounded border border-[--border] bg-[--background] px-1">s</kbd>
+              {" "}save
+            </span>
+            <span>
+              <kbd className="rounded border border-[--border] bg-[--background] px-1">x</kbd>
+              {" "}skip
+            </span>
+            <span>
+              <kbd className="rounded border border-[--border] bg-[--background] px-1">Enter</kbd>
+              {" "}open
+            </span>
+          </div>
+          <button
+            onClick={() => setShowHelp(true)}
+            className="hover:text-[--foreground] transition-colors"
+          >
+            Press <kbd className="rounded border border-[--border] bg-[--background] px-1">?</kbd> for all shortcuts
+          </button>
+        </div>
       </div>
 
       {/* Company Brief Drawer */}
@@ -369,6 +632,9 @@ export default function DripFeedPage() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Keyboard Shortcuts Help */}
+      <KeyboardShortcutsHelp open={showHelp} onOpenChange={setShowHelp} />
     </div>
   );
 }

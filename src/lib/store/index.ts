@@ -8,7 +8,29 @@ const STORAGE_KEYS = {
   LEADS: "leaddrip_leads",
   LISTS: "leaddrip_lists",
   ONBOARDING_COMPLETE: "leaddrip_onboarding_complete",
+  ACTIVITY_LOG: "leaddrip_activity_log",
 } as const;
+
+// Activity types
+export type ActivityType =
+  | "lead_discovered"
+  | "lead_saved"
+  | "lead_skipped"
+  | "lead_contacted"
+  | "lead_viewed"
+  | "opener_copied"
+  | "linkedin_searched"
+  | "signal_triggered";
+
+export interface ActivityEntry {
+  id: string;
+  leadId: string;
+  companyName: string;
+  domain: string;
+  type: ActivityType;
+  timestamp: string;
+  metadata?: Record<string, unknown>;
+}
 
 // User Config
 export function getUserConfig(): UserConfig {
@@ -282,6 +304,79 @@ export function resetAllData(): void {
   Object.values(STORAGE_KEYS).forEach(key => {
     localStorage.removeItem(key);
   });
+}
+
+// Activity Log
+export function getActivityLog(limit?: number): ActivityEntry[] {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const stored = localStorage.getItem(STORAGE_KEYS.ACTIVITY_LOG);
+    if (stored) {
+      const activities = JSON.parse(stored) as ActivityEntry[];
+      // Sort by timestamp descending
+      activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      return limit ? activities.slice(0, limit) : activities;
+    }
+  } catch (e) {
+    console.error("Failed to load activity log:", e);
+  }
+
+  return [];
+}
+
+export function getLeadActivity(leadId: string): ActivityEntry[] {
+  const allActivities = getActivityLog();
+  return allActivities.filter(a => a.leadId === leadId);
+}
+
+export function logActivity(
+  type: ActivityType,
+  lead: { id: string; companyName: string; domain: string },
+  metadata?: Record<string, unknown>
+): ActivityEntry {
+  const entry: ActivityEntry = {
+    id: `act_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+    leadId: lead.id,
+    companyName: lead.companyName,
+    domain: lead.domain,
+    type,
+    timestamp: new Date().toISOString(),
+    metadata,
+  };
+
+  if (typeof window === "undefined") return entry;
+
+  try {
+    const stored = localStorage.getItem(STORAGE_KEYS.ACTIVITY_LOG);
+    const activities: ActivityEntry[] = stored ? JSON.parse(stored) : [];
+
+    // Add new entry
+    activities.unshift(entry);
+
+    // Keep only last 1000 activities
+    const trimmed = activities.slice(0, 1000);
+
+    localStorage.setItem(STORAGE_KEYS.ACTIVITY_LOG, JSON.stringify(trimmed));
+  } catch (e) {
+    console.error("Failed to save activity:", e);
+  }
+
+  return entry;
+}
+
+export function getActivityLabel(type: ActivityType): string {
+  const labels: Record<ActivityType, string> = {
+    lead_discovered: "Lead discovered",
+    lead_saved: "Saved to pipeline",
+    lead_skipped: "Skipped",
+    lead_contacted: "Marked as contacted",
+    lead_viewed: "Viewed details",
+    opener_copied: "Copied opener message",
+    linkedin_searched: "Searched on LinkedIn",
+    signal_triggered: "Signal triggered",
+  };
+  return labels[type];
 }
 
 // Signal categories for grouping

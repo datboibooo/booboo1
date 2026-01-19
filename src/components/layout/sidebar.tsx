@@ -11,6 +11,7 @@ import {
   List,
   Radio,
   ChevronDown,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,12 @@ const navItems = [
     href: "/drip",
     icon: Zap,
     description: "Today's recommendations",
+  },
+  {
+    title: "Analytics",
+    href: "/analytics",
+    icon: BarChart3,
+    description: "Insights & metrics",
   },
   {
     title: "Signals Studio",
