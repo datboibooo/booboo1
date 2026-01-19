@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { LeadRecord } from "@/lib/schemas";
+import type { VerifiedLead } from "@/lib/data/lead-generator";
 import {
   Filter,
   Download,
@@ -32,17 +33,27 @@ import {
   X,
   CheckCircle,
   Keyboard,
+  ShieldCheck,
+  MapPin,
 } from "lucide-react";
 import { getStoredLeads, saveLeads, updateLead, logActivity } from "@/lib/store";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { KeyboardShortcutsHelp } from "@/components/ui/keyboard-shortcuts-help";
 import { cn } from "@/lib/utils";
 
+// Type for leads that may have verification
+type LeadWithOptionalVerification = LeadRecord | VerifiedLead;
+
+// Type guard
+function hasVerification(lead: LeadWithOptionalVerification): lead is VerifiedLead {
+  return 'verification' in lead && lead.verification !== undefined;
+}
+
 export default function DripFeedPage() {
-  const [leads, setLeads] = React.useState<LeadRecord[]>([]);
+  const [leads, setLeads] = React.useState<LeadWithOptionalVerification[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
-  const [selectedLead, setSelectedLead] = React.useState<LeadRecord | null>(
+  const [selectedLead, setSelectedLead] = React.useState<LeadWithOptionalVerification | null>(
     null
   );
   const [isDemo, setIsDemo] = React.useState(false);
@@ -50,6 +61,8 @@ export default function DripFeedPage() {
     status: "all",
     minScore: 0,
     industry: "all",
+    geo: "all",
+    verification: "all", // all, verified, watchlist, unverified
   });
 
   // Bulk selection state
@@ -272,6 +285,26 @@ export default function DripFeedPage() {
       lead.industry?.toLowerCase() !== filters.industry.toLowerCase()
     )
       return false;
+    if (
+      filters.geo !== "all" &&
+      lead.geo?.toLowerCase() !== filters.geo.toLowerCase()
+    )
+      return false;
+
+    // Verification filter
+    if (filters.verification !== "all") {
+      const isVerified = hasVerification(lead);
+      if (filters.verification === "verified" && (!isVerified || lead.verification?.status !== "verified")) {
+        return false;
+      }
+      if (filters.verification === "watchlist" && (!isVerified || lead.verification?.status !== "watchlist")) {
+        return false;
+      }
+      if (filters.verification === "unverified" && isVerified) {
+        return false;
+      }
+    }
+
     return true;
   });
 
@@ -336,17 +369,23 @@ export default function DripFeedPage() {
     avgScore: Math.round(
       leads.reduce((sum, l) => sum + l.score, 0) / Math.max(leads.length, 1)
     ),
+    verified: leads.filter((l) => hasVerification(l) && l.verification?.status === "verified").length,
+    watchlist: leads.filter((l) => hasVerification(l) && l.verification?.status === "watchlist").length,
   };
 
   const industries = Array.from(
     new Set(leads.map((l) => l.industry).filter(Boolean))
   );
 
+  const geos = Array.from(
+    new Set(leads.map((l) => l.geo).filter(Boolean))
+  );
+
   return (
     <div className="flex h-full flex-col">
       <Header
         title="Today's Drip"
-        subtitle={`${stats.total} leads • ${stats.new} new • Avg score: ${stats.avgScore}`}
+        subtitle={`${stats.total} leads • ${stats.new} new${stats.verified > 0 ? ` • ${stats.verified} verified` : ""} • Avg score: ${stats.avgScore}`}
         showRefresh
         onRefresh={handleRefresh}
         isRefreshing={isRefreshing}
@@ -500,6 +539,40 @@ export default function DripFeedPage() {
                 {ind}
               </SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={filters.geo}
+          onValueChange={(v) => setFilters((f) => ({ ...f, geo: v }))}
+        >
+          <SelectTrigger className="w-36 h-8">
+            <MapPin className="h-3 w-3 mr-1" />
+            <SelectValue placeholder="Location" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Locations</SelectItem>
+            {geos.map((geo) => (
+              <SelectItem key={geo} value={geo!.toLowerCase()}>
+                {geo}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={filters.verification}
+          onValueChange={(v) => setFilters((f) => ({ ...f, verification: v }))}
+        >
+          <SelectTrigger className="w-36 h-8">
+            <ShieldCheck className="h-3 w-3 mr-1" />
+            <SelectValue placeholder="Verification" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Signals</SelectItem>
+            <SelectItem value="verified">Verified Only</SelectItem>
+            <SelectItem value="watchlist">Watchlist</SelectItem>
+            <SelectItem value="unverified">Unverified</SelectItem>
           </SelectContent>
         </Select>
 

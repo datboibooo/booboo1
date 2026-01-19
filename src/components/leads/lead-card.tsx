@@ -8,18 +8,27 @@ import {
   Copy,
   Check,
   ChevronRight,
+  ShieldCheck,
+  AlertTriangle,
+  Link2,
 } from "lucide-react";
 import { LeadRecord } from "@/lib/schemas";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import type { VerifiedLead } from "@/lib/data/lead-generator";
 
 interface LeadCardProps {
-  lead: LeadRecord;
+  lead: LeadRecord | VerifiedLead;
   isSelected?: boolean;
   isFocused?: boolean;
   onSelect?: () => void;
   onStatusChange?: (status: LeadRecord["status"]) => void;
+}
+
+// Type guard for VerifiedLead
+function hasVerification(lead: LeadRecord | VerifiedLead): lead is VerifiedLead {
+  return 'verification' in lead && lead.verification !== undefined;
 }
 
 export function LeadCard({
@@ -30,6 +39,9 @@ export function LeadCard({
   onStatusChange,
 }: LeadCardProps) {
   const [copied, setCopied] = React.useState(false);
+  const [showEvidence, setShowEvidence] = React.useState(false);
+
+  const verification = hasVerification(lead) ? lead.verification : undefined;
 
   const scoreClass =
     lead.score >= 80
@@ -49,7 +61,7 @@ export function LeadCard({
   return (
     <div
       className={cn(
-        "card p-4 transition-all",
+        "card p-4 transition-all relative",
         isSelected && "border-[--accent] bg-[--accent-subtle]",
         isFocused && !isSelected && "border-[--foreground-subtle]"
       )}
@@ -71,7 +83,30 @@ export function LeadCard({
           <p className="text-xs text-[--foreground-muted] mt-0.5">{lead.domain}</p>
         </div>
 
-        <div className={cn("score-pill", scoreClass)}>{lead.score}</div>
+        <div className="flex items-center gap-2">
+          {/* Verification Badge */}
+          {verification && (
+            <div
+              className={cn(
+                "confidence-badge",
+                verification.confidenceBand === "high" && "confidence-high",
+                verification.confidenceBand === "medium" && "confidence-medium",
+                verification.confidenceBand === "low" && "confidence-low",
+                verification.confidenceBand === "unknown" && "confidence-unknown"
+              )}
+              title={`Verification: ${verification.status} (${Math.round(verification.confidence * 100)}% confidence)`}
+            >
+              {verification.status === "verified" ? (
+                <ShieldCheck className="h-3 w-3" />
+              ) : (
+                <AlertTriangle className="h-3 w-3" />
+              )}
+              <span>{Math.round(verification.confidence * 100)}%</span>
+            </div>
+          )}
+
+          <div className={cn("score-pill", scoreClass)}>{lead.score}</div>
+        </div>
       </div>
 
       {/* Meta: Industry & Location */}
@@ -109,14 +144,80 @@ export function LeadCard({
         <p className="text-sm leading-relaxed">{lead.whyNow}</p>
       </div>
 
+      {/* Verification Evidence (collapsed by default) */}
+      {verification && verification.topEvidence.length > 0 && (
+        <div className="mt-3">
+          <button
+            onClick={() => setShowEvidence(!showEvidence)}
+            className="flex items-center gap-1.5 text-xs text-[--foreground-muted] hover:text-[--foreground] transition-colors"
+          >
+            <Link2 className="h-3 w-3" />
+            <span>{verification.topEvidence.length} verified sources</span>
+            <ChevronRight
+              className={cn(
+                "h-3 w-3 transition-transform",
+                showEvidence && "rotate-90"
+              )}
+            />
+          </button>
+
+          {showEvidence && (
+            <div className="mt-2 space-y-1.5">
+              {verification.topEvidence.map((ev, idx) => (
+                <a
+                  key={idx}
+                  href={ev.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="evidence-link"
+                >
+                  <span className="truncate block text-[--foreground]">
+                    {new URL(ev.url).hostname.replace("www.", "")}
+                  </span>
+                  <span className="evidence-snippet">{ev.snippet}</span>
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Footer: Sources & Actions */}
       <div className="mt-4 flex items-center justify-between pt-3 border-t border-[--border]">
         <div className="flex items-center gap-2 text-xs text-[--foreground-muted]">
-          <span>{lead.evidenceUrls.length} sources</span>
-          <span>·</span>
-          <span className="truncate max-w-[120px]">
-            {lead.targetTitles.slice(0, 2).join(", ")}
-          </span>
+          {verification ? (
+            <>
+              <span
+                className={cn(
+                  "verification-status",
+                  verification.status === "verified" && "verification-verified",
+                  verification.status === "watchlist" && "verification-watchlist"
+                )}
+              >
+                {verification.status === "verified" ? (
+                  <>
+                    <ShieldCheck className="h-3 w-3" />
+                    Verified
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle className="h-3 w-3" />
+                    Watchlist
+                  </>
+                )}
+              </span>
+              <span>·</span>
+              <span>{verification.claimsVerified} claims verified</span>
+            </>
+          ) : (
+            <>
+              <span>{lead.evidenceUrls.length} sources</span>
+              <span>·</span>
+              <span className="truncate max-w-[120px]">
+                {lead.targetTitles.slice(0, 2).join(", ")}
+              </span>
+            </>
+          )}
         </div>
       </div>
 
