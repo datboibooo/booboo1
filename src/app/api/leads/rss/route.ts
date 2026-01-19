@@ -41,18 +41,25 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const maxItems = Math.min(body.maxItems || 10, 50); // Cap at 50
     const skipOpeners = body.skipOpeners || false;
+    const enableVerification = body.enableVerification || false;
+    const verificationMinConfidence = body.verificationMinConfidence || 0.45;
 
-    console.log(`Starting RSS lead generation (maxItems: ${maxItems})`);
+    console.log(
+      `Starting RSS lead generation (maxItems: ${maxItems}, verification: ${enableVerification})`
+    );
 
     const result = await generateLeadsFromRSS({
       maxItems,
       skipOpeners,
+      enableVerification,
+      verificationMinConfidence,
     });
 
     return NextResponse.json({
       success: true,
       leads: result.leads,
       stats: result.stats,
+      verificationEnabled: enableVerification,
     });
   } catch (error) {
     console.error("Lead generation failed:", error);

@@ -4,6 +4,7 @@ import { fetchAllSources, RSSItem } from "./rss-fetcher";
 import { extractSignalsFromItems, signalToLead, ExtractedSignal } from "./signal-extractor";
 import { getLLMProvider } from "@/lib/providers/llm";
 import { z } from "zod";
+import { verifySignal, VerificationResult } from "@/lib/verification";
 
 // Schema for opener generation
 const OpenerSchema = z.object({
@@ -51,21 +52,39 @@ Be conversational, not salesy. Reference the specific signal. Don't mention your
   }
 }
 
+// Extended lead with verification data
+export interface VerifiedLead extends LeadRecord {
+  verification?: {
+    status: "verified" | "watchlist" | "discard";
+    confidence: number;
+    confidenceBand: "high" | "medium" | "low" | "unknown";
+    topEvidence: { url: string; snippet: string }[];
+    claimsVerified: number;
+    claimsContradicted: number;
+  };
+}
+
 // Main function to generate leads from RSS feeds
 export async function generateLeadsFromRSS(options?: {
   maxItems?: number;
   skipOpeners?: boolean;
+  enableVerification?: boolean;
+  verificationMinConfidence?: number;
 }): Promise<{
-  leads: LeadRecord[];
+  leads: VerifiedLead[];
   stats: {
     rssItemsFetched: number;
     signalsExtracted: number;
     leadsGenerated: number;
+    leadsVerified?: number;
+    leadsDiscarded?: number;
     processingTimeMs: number;
   };
 }> {
   const startTime = Date.now();
   const maxItems = options?.maxItems || 20;
+  const enableVerification = options?.enableVerification ?? false;
+  const minConfidence = options?.verificationMinConfidence ?? 0.45;
 
   // Step 1: Fetch RSS items
   console.log("Fetching RSS feeds...");
@@ -79,6 +98,7 @@ export async function generateLeadsFromRSS(options?: {
         rssItemsFetched: 0,
         signalsExtracted: 0,
         leadsGenerated: 0,
+        ...(enableVerification && { leadsVerified: 0, leadsDiscarded: 0 }),
         processingTimeMs: Date.now() - startTime,
       },
     };
@@ -90,8 +110,10 @@ export async function generateLeadsFromRSS(options?: {
   console.log(`Extracted ${signals.length} valid signals`);
 
   // Step 3: Convert signals to leads
-  const leads: LeadRecord[] = [];
+  const leads: VerifiedLead[] = [];
   const today = new Date().toISOString().split("T")[0];
+  let leadsVerified = 0;
+  let leadsDiscarded = 0;
 
   for (let i = 0; i < signals.length; i++) {
     const signal = signals[i];
@@ -103,6 +125,79 @@ export async function generateLeadsFromRSS(options?: {
     if (!matchingItem) continue;
 
     const leadData = signalToLead(signal, matchingItem);
+
+    // Step 3a: Verify signal if enabled
+    let verification: VerifiedLead["verification"] | undefined;
+    if (enableVerification) {
+      console.log(`Verifying signal for ${signal.companyName}...`);
+      try {
+        const verificationResult = await verifySignal({
+          company: signal.companyName,
+          domain: signal.domain,
+          rawSignal: {
+            type: signal.signalType,
+            details: signal.signalDetails,
+            relevanceScore: signal.relevanceScore,
+          },
+          rssItem: {
+            title: matchingItem.title,
+            link: matchingItem.link,
+            content: matchingItem.content,
+            contentSnippet: matchingItem.contentSnippet,
+            pubDate: matchingItem.pubDate,
+            sourceName: matchingItem.sourceName,
+          },
+        });
+
+        verification = {
+          status: verificationResult.overallStatus,
+          confidence: verificationResult.overallConfidence,
+          confidenceBand: verificationResult.confidenceBand,
+          topEvidence: verificationResult.topSupportingEvidence.slice(0, 3).map((e) => ({
+            url: e.url,
+            snippet: e.snippet,
+          })),
+          claimsVerified: verificationResult.claimVerifications.filter(
+            (c) => c.status === "verified"
+          ).length,
+          claimsContradicted: verificationResult.claimVerifications.filter(
+            (c) => c.status === "contradicted"
+          ).length,
+        };
+
+        // Skip leads that fail verification
+        if (verificationResult.overallStatus === "discard") {
+          leadsDiscarded++;
+          console.log(`Discarding ${signal.companyName}: ${verificationResult.statusReason}`);
+          continue;
+        }
+
+        // Skip leads below minimum confidence
+        if (verificationResult.overallConfidence < minConfidence) {
+          leadsDiscarded++;
+          console.log(
+            `Discarding ${signal.companyName}: confidence ${(verificationResult.overallConfidence * 100).toFixed(0)}% below threshold`
+          );
+          continue;
+        }
+
+        leadsVerified++;
+
+        // Adjust score based on verification confidence
+        leadData.score = Math.round(
+          leadData.score * (0.7 + verificationResult.overallConfidence * 0.3)
+        );
+
+        // Add verified evidence URLs
+        if (verificationResult.topSupportingEvidence.length > 0) {
+          leadData.evidenceUrls = verificationResult.topSupportingEvidence.map((e) => e.url);
+          leadData.evidenceSnippets = verificationResult.topSupportingEvidence.map((e) => e.snippet);
+        }
+      } catch (error) {
+        console.error(`Verification failed for ${signal.companyName}:`, error);
+        // Continue without verification data on error
+      }
+    }
 
     // Generate openers (can be skipped for faster processing)
     let openers = { short: "", medium: "" };
@@ -119,7 +214,7 @@ export async function generateLeadsFromRSS(options?: {
       };
     }
 
-    const lead: LeadRecord = {
+    const lead: VerifiedLead = {
       id: uuidv4(),
       userId: "system",
       date: today,
@@ -151,16 +246,26 @@ export async function generateLeadsFromRSS(options?: {
         signal.industry ? `The company operates in the ${signal.industry} space.` : "",
         signal.location ? `Based in ${signal.location}.` : "",
         signal.whyNow,
+        verification?.confidence && verification.confidence > 0.7
+          ? `✓ Signal verified with ${(verification.confidence * 100).toFixed(0)}% confidence`
+          : "",
       ].filter(Boolean),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      verification,
     };
 
     leads.push(lead);
   }
 
-  // Sort by score
-  leads.sort((a, b) => b.score - a.score);
+  // Sort by score (verified leads with higher confidence ranked higher)
+  leads.sort((a, b) => {
+    // Verified leads first
+    if (a.verification && !b.verification) return -1;
+    if (!a.verification && b.verification) return 1;
+    // Then by score
+    return b.score - a.score;
+  });
 
   return {
     leads,
@@ -168,6 +273,7 @@ export async function generateLeadsFromRSS(options?: {
       rssItemsFetched: rssItems.length,
       signalsExtracted: signals.length,
       leadsGenerated: leads.length,
+      ...(enableVerification && { leadsVerified, leadsDiscarded }),
       processingTimeMs: Date.now() - startTime,
     },
   };

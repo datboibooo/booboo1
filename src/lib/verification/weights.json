@@ -1,0 +1,136 @@
+{
+  "version": "1.0.0",
+  "sourceTypeWeights": {
+    "rss_article": 0.6,
+    "company_press": 0.95,
+    "company_newsroom": 0.95,
+    "company_careers": 0.9,
+    "company_about": 0.85,
+    "third_party_news": 0.7,
+    "sec_filing": 1.0,
+    "jobs_board": 0.75,
+    "crunchbase": 0.85,
+    "pitchbook": 0.85,
+    "registry": 0.9,
+    "social_official": 0.7,
+    "other": 0.4
+  },
+  "publisherAllowlist": {
+    "techcrunch.com": 0.85,
+    "crunchbase.com": 0.9,
+    "pitchbook.com": 0.9,
+    "reuters.com": 0.95,
+    "bloomberg.com": 0.95,
+    "wsj.com": 0.95,
+    "forbes.com": 0.8,
+    "venturebeat.com": 0.8,
+    "businesswire.com": 0.9,
+    "prnewswire.com": 0.85,
+    "globenewswire.com": 0.85,
+    "sec.gov": 1.0,
+    "linkedin.com": 0.0,
+    "twitter.com": 0.5,
+    "x.com": 0.5
+  },
+  "recencyDecay": {
+    "halfLifeDays": 30,
+    "minWeight": 0.3
+  },
+  "specificityFactors": {
+    "hasExactNumbers": 0.15,
+    "hasNamedPeople": 0.1,
+    "hasSpecificDates": 0.1,
+    "hasQuotes": 0.1
+  },
+  "duplicationPenalty": 0.3,
+  "confidenceThresholds": {
+    "verified": 0.75,
+    "watchlist": 0.45,
+    "discard": 0.0
+  },
+  "hardGates": {
+    "funding_raised": [
+      "official_announcement_or_2_reputable_sources",
+      "amount_consistent_across_sources"
+    ],
+    "funding_amount": [
+      "official_announcement_or_2_reputable_sources",
+      "amount_not_contradicted"
+    ],
+    "acquisition_announced": [
+      "official_from_either_party_or_2_reputable",
+      "no_denial_found"
+    ],
+    "acquisition_target": [
+      "company_name_confirmed"
+    ],
+    "acquisition_acquirer": [
+      "company_name_confirmed"
+    ],
+    "ipo_announced": [
+      "sec_filing_or_official_announcement",
+      "no_postponement_notice"
+    ],
+    "ipo_valuation": [
+      "official_source_or_sec_filing"
+    ],
+    "leadership_hire": [
+      "official_announcement_or_linkedin_or_company_page",
+      "person_exists_verification"
+    ],
+    "leadership_departure": [
+      "official_announcement_or_2_reputable",
+      "no_retraction"
+    ],
+    "expansion_geographic": [
+      "official_announcement_or_job_postings"
+    ],
+    "expansion_office": [
+      "official_announcement_or_verifiable_address"
+    ],
+    "product_launch": [
+      "official_product_page_or_announcement"
+    ],
+    "partnership_announced": [
+      "confirmation_from_at_least_one_official_party"
+    ],
+    "partnership_partner": [
+      "partner_name_verified"
+    ],
+    "hiring_initiative": [
+      "official_careers_page_or_job_listings"
+    ],
+    "hiring_role": [
+      "active_job_posting_found"
+    ],
+    "layoff_announced": [
+      "official_statement_or_2_reputable_sources",
+      "no_retraction"
+    ],
+    "revenue_milestone": [
+      "official_announcement_or_sec_filing"
+    ],
+    "other": []
+  },
+  "_tuningNotes": {
+    "description": "Notes on adjusting weights based on observed performance",
+    "falsePositiveIndicators": [
+      "If seeing too many unverified signals pass, increase confidenceThresholds.verified",
+      "If specific source types produce bad signals, lower their sourceTypeWeights",
+      "If old articles causing issues, reduce recencyDecay.halfLifeDays"
+    ],
+    "falseNegativeIndicators": [
+      "If good signals are being discarded, lower confidenceThresholds.watchlist",
+      "If official sources are being underweighted, increase their sourceTypeWeights",
+      "If recent articles are not getting enough weight, increase recencyDecay.halfLifeDays"
+    ],
+    "calibrationProcess": [
+      "1. Run verification on a sample of 50-100 signals",
+      "2. Manually label each as true/false positive",
+      "3. Calculate precision/recall at current thresholds",
+      "4. Adjust thresholds to optimize F1 score",
+      "5. Review per-source-type accuracy and adjust weights",
+      "6. Re-run and iterate"
+    ]
+  }
+}

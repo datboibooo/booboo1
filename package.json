@@ -12,6 +12,7 @@
     "@ai-sdk/anthropic": "^3.0.15",
     "@ai-sdk/openai": "^3.0.12",
     "@anthropic-ai/sdk": "^0.71.2",
+    "@paralleldrive/cuid2": "^3.0.6",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-label": "^2.1.8",
     "@radix-ui/react-progress": "^1.1.8",
