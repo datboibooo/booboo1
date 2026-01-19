@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { OceanBackground } from "@/components/ui/ocean-background";
 
 export const metadata: Metadata = {
   title: "LeadDrip - B2B Lead Intelligence",
@@ -22,6 +23,7 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased">
+        <OceanBackground />
         {children}
       </body>
     </html>

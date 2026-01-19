@@ -18,16 +18,17 @@
   --accent-muted: rgba(139, 92, 246, 0.3);
   --accent-subtle: rgba(139, 92, 246, 0.1);
 
-  /* Gradient definitions */
+  /* Gradient definitions - Ocean Theme */
   --gradient-primary: linear-gradient(135deg, #8b5cf6, #3b82f6, #06b6d4);
   --gradient-secondary: linear-gradient(135deg, #6366f1, #8b5cf6);
   --gradient-glow: radial-gradient(ellipse at center, rgba(139, 92, 246, 0.15), transparent 70%);
-  --gradient-mesh:
-    radial-gradient(at 40% 20%, rgba(139, 92, 246, 0.15) 0px, transparent 50%),
-    radial-gradient(at 80% 0%, rgba(59, 130, 246, 0.1) 0px, transparent 50%),
-    radial-gradient(at 0% 50%, rgba(6, 182, 212, 0.08) 0px, transparent 50%),
-    radial-gradient(at 80% 50%, rgba(139, 92, 246, 0.08) 0px, transparent 50%),
-    radial-gradient(at 0% 100%, rgba(59, 130, 246, 0.1) 0px, transparent 50%);
+
+  /* Ocean colors */
+  --ocean-deep: #020617;
+  --ocean-mid: #0c1929;
+  --ocean-surface: #0f172a;
+  --ocean-light: rgba(56, 189, 248, 0.1);
+  --ocean-foam: rgba(255, 255, 255, 0.03);
 
   /* Priority colors */
   --priority-high: #f43f5e;
@@ -81,12 +82,45 @@
 }
 
 body {
-  background: var(--background);
-  background-image: var(--gradient-mesh);
-  background-attachment: fixed;
+  background: var(--ocean-deep);
   color: var(--foreground);
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Ocean Background Container */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    /* Surface light rays */
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(56, 189, 248, 0.15), transparent 60%),
+    /* Deep ocean gradient */
+    linear-gradient(180deg,
+      var(--ocean-surface) 0%,
+      var(--ocean-mid) 30%,
+      var(--ocean-deep) 100%
+    );
+  z-index: -3;
+}
+
+/* Animated waves layer 1 - slow, large */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 320'%3E%3Cpath fill='rgba(56,189,248,0.03)' d='M0,192L48,197.3C96,203,192,213,288,229.3C384,245,480,267,576,250.7C672,235,768,181,864,181.3C960,181,1056,235,1152,234.7C1248,235,1344,181,1392,154.7L1440,128L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z'/%3E%3C/svg%3E");
+  background-size: 200% 100%;
+  background-position: 0% 100%;
+  background-repeat: repeat-x;
+  animation: ocean-wave 25s ease-in-out infinite;
+  opacity: 0.6;
+  z-index: -2;
+  pointer-events: none;
 }
 
 /* Custom scrollbar with glass effect */
@@ -202,6 +236,88 @@ body {
   }
   50% {
     border-color: rgba(139, 92, 246, 0.4);
+  }
+}
+
+/* Ocean wave animations */
+@keyframes ocean-wave {
+  0%, 100% {
+    background-position: 0% 100%;
+    transform: translateY(0);
+  }
+  50% {
+    background-position: 100% 100%;
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes ocean-wave-2 {
+  0%, 100% {
+    background-position: 100% 100%;
+    transform: translateY(0) scaleY(1);
+  }
+  50% {
+    background-position: 0% 100%;
+    transform: translateY(-15px) scaleY(1.1);
+  }
+}
+
+@keyframes ocean-wave-3 {
+  0%, 100% {
+    transform: translateX(0) translateY(0);
+  }
+  25% {
+    transform: translateX(-5%) translateY(-8px);
+  }
+  50% {
+    transform: translateX(0) translateY(-12px);
+  }
+  75% {
+    transform: translateX(5%) translateY(-5px);
+  }
+}
+
+@keyframes bubble-rise {
+  0% {
+    transform: translateY(100vh) translateX(0) scale(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.6;
+    transform: translateY(90vh) translateX(10px) scale(1);
+  }
+  90% {
+    opacity: 0.3;
+  }
+  100% {
+    transform: translateY(-10vh) translateX(-10px) scale(0.5);
+    opacity: 0;
+  }
+}
+
+@keyframes caustics {
+  0%, 100% {
+    opacity: 0.03;
+    transform: scale(1) rotate(0deg);
+  }
+  33% {
+    opacity: 0.05;
+    transform: scale(1.1) rotate(1deg);
+  }
+  66% {
+    opacity: 0.04;
+    transform: scale(0.95) rotate(-1deg);
+  }
+}
+
+@keyframes light-ray {
+  0%, 100% {
+    opacity: 0.1;
+    transform: translateY(0) scaleY(1);
+  }
+  50% {
+    opacity: 0.2;
+    transform: translateY(-20px) scaleY(1.1);
   }
 }
 
@@ -598,7 +714,7 @@ body {
   color: var(--foreground);
 }
 
-/* Orb gradient decoration */
+/* Orb gradient decoration - Ocean themed */
 .orb {
   position: absolute;
   border-radius: 50%;
@@ -617,6 +733,17 @@ body {
 
 .orb-cyan {
   background: radial-gradient(circle, rgba(6, 182, 212, 0.25), transparent 70%);
+}
+
+/* Ocean-specific orbs */
+.orb-ocean-light {
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.2), transparent 70%);
+  animation: caustics 8s ease-in-out infinite;
+}
+
+.orb-ocean-deep {
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.15), transparent 70%);
+  animation: caustics 12s ease-in-out infinite reverse;
 }
 
 /* Shimmer effect for loading states */
@@ -640,4 +767,147 @@ body {
   opacity: 0.02;
   pointer-events: none;
   mix-blend-mode: overlay;
+}
+
+/* ================ OCEAN EFFECTS ================ */
+
+/* Ocean wave layers */
+.ocean-waves {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  overflow: hidden;
+}
+
+.ocean-wave {
+  position: absolute;
+  width: 200%;
+  height: 100%;
+  bottom: 0;
+  left: -50%;
+  background-repeat: repeat-x;
+  background-size: 50% 100px;
+  background-position: 0 bottom;
+}
+
+.ocean-wave-1 {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 320'%3E%3Cpath fill='rgba(56,189,248,0.03)' d='M0,224L60,213.3C120,203,240,181,360,181.3C480,181,600,203,720,213.3C840,224,960,224,1080,208C1200,192,1320,160,1380,144L1440,128L1440,320L1380,320C1320,320,1200,320,1080,320C960,320,840,320,720,320C600,320,480,320,360,320C240,320,120,320,60,320L0,320Z'/%3E%3C/svg%3E");
+  animation: ocean-wave-3 20s ease-in-out infinite;
+  opacity: 0.8;
+}
+
+.ocean-wave-2 {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 320'%3E%3Cpath fill='rgba(139,92,246,0.02)' d='M0,288L48,272C96,256,192,224,288,213.3C384,203,480,213,576,229.3C672,245,768,267,864,261.3C960,256,1056,224,1152,213.3C1248,203,1344,213,1392,218.7L1440,224L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z'/%3E%3C/svg%3E");
+  animation: ocean-wave-3 15s ease-in-out infinite reverse;
+  animation-delay: -5s;
+  opacity: 0.6;
+}
+
+.ocean-wave-3 {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 320'%3E%3Cpath fill='rgba(6,182,212,0.02)' d='M0,160L48,176C96,192,192,224,288,229.3C384,235,480,213,576,186.7C672,160,768,128,864,128C960,128,1056,160,1152,176C1248,192,1344,192,1392,192L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z'/%3E%3C/svg%3E");
+  animation: ocean-wave-3 25s ease-in-out infinite;
+  animation-delay: -10s;
+  opacity: 0.5;
+}
+
+/* Caustic light patterns (like underwater light) */
+.caustics {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    repeating-conic-gradient(
+      from 0deg at 50% 50%,
+      transparent 0deg,
+      rgba(56, 189, 248, 0.02) 2deg,
+      transparent 4deg
+    );
+  background-size: 100px 100px;
+  animation: caustics 10s ease-in-out infinite;
+  mix-blend-mode: overlay;
+}
+
+/* Light rays from surface */
+.light-rays {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60%;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    linear-gradient(180deg,
+      rgba(56, 189, 248, 0.08) 0%,
+      rgba(56, 189, 248, 0.03) 30%,
+      transparent 100%
+    );
+  mask-image:
+    repeating-linear-gradient(
+      105deg,
+      transparent 0px,
+      transparent 40px,
+      white 42px,
+      white 80px,
+      transparent 82px,
+      transparent 120px
+    );
+  -webkit-mask-image:
+    repeating-linear-gradient(
+      105deg,
+      transparent 0px,
+      transparent 40px,
+      white 42px,
+      white 80px,
+      transparent 82px,
+      transparent 120px
+    );
+  animation: light-ray 8s ease-in-out infinite;
+}
+
+/* Floating particles (plankton/bubbles) */
+.ocean-particles {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.6), transparent);
+  border-radius: 50%;
+  animation: bubble-rise linear infinite;
+}
+
+.particle:nth-child(1) { left: 10%; animation-duration: 15s; animation-delay: 0s; }
+.particle:nth-child(2) { left: 20%; animation-duration: 18s; animation-delay: -3s; width: 3px; height: 3px; }
+.particle:nth-child(3) { left: 35%; animation-duration: 20s; animation-delay: -6s; }
+.particle:nth-child(4) { left: 50%; animation-duration: 16s; animation-delay: -2s; width: 5px; height: 5px; }
+.particle:nth-child(5) { left: 65%; animation-duration: 22s; animation-delay: -8s; width: 3px; height: 3px; }
+.particle:nth-child(6) { left: 75%; animation-duration: 17s; animation-delay: -4s; }
+.particle:nth-child(7) { left: 85%; animation-duration: 19s; animation-delay: -7s; width: 4px; height: 4px; }
+.particle:nth-child(8) { left: 95%; animation-duration: 21s; animation-delay: -1s; width: 3px; height: 3px; }
+
+/* Underwater fog/depth effect */
+.ocean-depth {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 40%;
+  pointer-events: none;
+  z-index: -1;
+  background: linear-gradient(0deg,
+    rgba(2, 6, 23, 0.8) 0%,
+    rgba(2, 6, 23, 0.4) 40%,
+    transparent 100%
+  );
 }
