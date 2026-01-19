@@ -17,6 +17,7 @@ import {
   SkipForward,
   Mail,
   Search,
+  Sparkles,
 } from "lucide-react";
 import { LeadRecord } from "@/lib/schemas";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +32,7 @@ import {
   type ActivityEntry,
   type ActivityType,
 } from "@/lib/store";
+import { OutreachPanel } from "./outreach-panel";
 
 interface CompanyBriefProps {
   lead: LeadRecord;
@@ -374,62 +376,18 @@ export function CompanyBrief({
               </div>
             </section>
 
-            {/* Opener Messages */}
+            {/* AI-Powered Outreach Generation */}
             <section className="mt-6">
-              <h3 className="mb-3 text-sm font-medium uppercase tracking-wider text-[--foreground-subtle]">
-                Starter Messages
-              </h3>
-              <div className="space-y-4">
-                {/* Short Opener */}
-                <div className="proof-card">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-[--foreground-subtle]">
-                      SHORT (2-3 sentences)
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleCopyOpener("short")}
-                      className="h-7 gap-1"
-                    >
-                      {copiedOpener === "short" ? (
-                        <Check className="h-3 w-3 text-[--score-excellent]" />
-                      ) : (
-                        <Copy className="h-3 w-3" />
-                      )}
-                      {copiedOpener === "short" ? "Copied!" : "Copy"}
-                    </Button>
-                  </div>
-                  <p className="text-sm text-[--foreground-muted]">
-                    {lead.openerShort}
-                  </p>
-                </div>
-
-                {/* Medium Opener */}
-                <div className="proof-card">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-[--foreground-subtle]">
-                      MEDIUM (4-5 sentences)
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleCopyOpener("medium")}
-                      className="h-7 gap-1"
-                    >
-                      {copiedOpener === "medium" ? (
-                        <Check className="h-3 w-3 text-[--score-excellent]" />
-                      ) : (
-                        <Copy className="h-3 w-3" />
-                      )}
-                      {copiedOpener === "medium" ? "Copied!" : "Copy"}
-                    </Button>
-                  </div>
-                  <p className="text-sm text-[--foreground-muted]">
-                    {lead.openerMedium}
-                  </p>
-                </div>
+              <div className="flex items-center gap-2 mb-3">
+                <Sparkles className="h-4 w-4 text-[--accent]" />
+                <h3 className="text-sm font-medium uppercase tracking-wider text-[--foreground-subtle]">
+                  AI-Powered Outreach
+                </h3>
               </div>
+              <OutreachPanel
+                lead={lead}
+                onActivityLog={(entry) => setActivities((prev) => [entry, ...prev])}
+              />
             </section>
           </TabsContent>
 
