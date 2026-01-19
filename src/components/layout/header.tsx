@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Search, Bell, RefreshCw, Calendar, Sparkles } from "lucide-react";
+import { Search, Bell, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -24,22 +24,13 @@ export function Header({
   isRefreshing = false,
   actions,
 }: HeaderProps) {
-  const today = new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "short",
-    day: "numeric",
-  });
-
   return (
-    <header className="glass relative flex h-16 items-center justify-between border-b border-[--border] px-6">
-      {/* Subtle gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-r from-[--accent]/5 via-transparent to-[--accent-secondary]/5 pointer-events-none" />
-
-      <div className="relative flex items-center gap-4">
+    <header className="header flex h-14 items-center justify-between px-6">
+      <div className="flex items-center gap-4">
         <div>
-          <h1 className="text-lg font-semibold text-gradient">{title}</h1>
+          <h1 className="text-base font-medium">{title}</h1>
           {subtitle && (
-            <p className="text-sm text-[--foreground-muted]">{subtitle}</p>
+            <p className="text-xs text-[--foreground-muted]">{subtitle}</p>
           )}
         </div>
         {showRefresh && (
@@ -48,44 +39,31 @@ export function Header({
             size="sm"
             onClick={onRefresh}
             disabled={isRefreshing}
-            className="glass-button gap-2 h-8"
+            className="h-8 text-xs gap-1.5"
           >
-            {isRefreshing ? (
-              <RefreshCw className="h-4 w-4 animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4 text-[--accent]" />
-            )}
+            <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
             {isRefreshing ? "Generating..." : "Generate"}
           </Button>
         )}
       </div>
 
-      <div className="relative flex items-center gap-4">
+      <div className="flex items-center gap-3">
         {showSearch && (
-          <div className="relative w-64">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[--foreground-subtle]" />
+          <div className="relative w-56">
+            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[--foreground-subtle]" />
             <Input
               type="search"
-              placeholder="Search leads..."
-              className="glass-input pl-9 h-9 border-[--border]"
+              placeholder="Search..."
+              className="pl-8 h-8 text-sm"
             />
           </div>
         )}
 
-        <div className="flex items-center gap-2 text-sm text-[--foreground-muted] bg-[--background-tertiary] px-3 py-1.5 rounded-lg border border-[--border]">
-          <Calendar className="h-4 w-4 text-[--accent]" />
-          <span>{today}</span>
-        </div>
-
         {actions}
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="relative hover:bg-[--accent]/10"
-        >
+        <Button variant="ghost" size="icon" className="relative h-8 w-8">
           <Bell className="h-4 w-4" />
-          <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-gradient-to-r from-[--accent] to-[--accent-secondary] text-[10px] font-bold text-white shadow-lg shadow-[--accent]/30">
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[--danger] text-[10px] font-medium text-white">
             3
           </span>
         </Button>
