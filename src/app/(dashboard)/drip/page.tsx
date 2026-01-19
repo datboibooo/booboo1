@@ -36,6 +36,8 @@ import {
   ShieldCheck,
   MapPin,
   Sparkles,
+  Zap,
+  Brain,
 } from "lucide-react";
 import { getStoredLeads, saveLeads, updateLead, logActivity } from "@/lib/store";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
@@ -43,6 +45,7 @@ import { KeyboardShortcutsHelp } from "@/components/ui/keyboard-shortcuts-help";
 import { cn } from "@/lib/utils";
 import { CommandPalette } from "@/components/ui/command-palette";
 import { ResearchPanel } from "@/components/research/research-panel";
+import { ThinkingPanel } from "@/components/thinking/thinking-panel";
 
 // Type for leads that may have verification
 type LeadWithOptionalVerification = LeadRecord | VerifiedLead;
@@ -77,6 +80,7 @@ export default function DripFeedPage() {
 
   // Research panel state
   const [showResearchPanel, setShowResearchPanel] = React.useState(false);
+  const [showThinkingPanel, setShowThinkingPanel] = React.useState(false);
 
   const fetchLeads = React.useCallback(async () => {
     try {
@@ -422,11 +426,20 @@ export default function DripFeedPage() {
             <Button
               variant="default"
               size="sm"
-              onClick={() => setShowResearchPanel(true)}
+              onClick={() => setShowThinkingPanel(true)}
               className="gap-1 bg-gradient-to-r from-[--accent] to-purple-600 hover:from-[--accent]/90 hover:to-purple-600/90"
             >
-              <Sparkles className="h-4 w-4" />
-              Research
+              <Brain className="h-4 w-4" />
+              AI Search
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowResearchPanel(true)}
+              className="gap-1"
+            >
+              <Zap className="h-4 w-4" />
+              Agents
             </Button>
             <Button
               variant="ghost"
@@ -761,6 +774,12 @@ export default function DripFeedPage() {
           console.log(`Research agents found ${count} signals`);
           // In production, this would add new leads to the list
         }}
+      />
+
+      {/* AI Thinking Panel */}
+      <ThinkingPanel
+        open={showThinkingPanel}
+        onOpenChange={setShowThinkingPanel}
       />
     </div>
   );
