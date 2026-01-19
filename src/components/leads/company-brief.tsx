@@ -33,6 +33,7 @@ import {
   type ActivityType,
 } from "@/lib/store";
 import { OutreachPanel } from "./outreach-panel";
+import { SignalTimeline, generateDemoSignals } from "./signal-timeline";
 
 interface CompanyBriefProps {
   lead: LeadRecord;
@@ -70,6 +71,9 @@ export function CompanyBrief({
   const [copiedOpener, setCopiedOpener] = React.useState<string | null>(null);
   const [copiedQuery, setCopiedQuery] = React.useState(false);
   const [activities, setActivities] = React.useState<ActivityEntry[]>([]);
+  const [signalHistory, setSignalHistory] = React.useState(() =>
+    generateDemoSignals(lead.companyName)
+  );
 
   // Load activities and log view
   React.useEffect(() => {
@@ -217,6 +221,13 @@ export function CompanyBrief({
             >
               <MessageSquare className="mr-2 h-4 w-4" />
               Outreach
+            </TabsTrigger>
+            <TabsTrigger
+              value="signals"
+              className="border-b-2 border-transparent data-[state=active]:border-[--accent] data-[state=active]:bg-transparent rounded-none"
+            >
+              <Clock className="mr-2 h-4 w-4" />
+              Signal History
             </TabsTrigger>
             <TabsTrigger
               value="activity"
@@ -388,6 +399,16 @@ export function CompanyBrief({
                 lead={lead}
                 onActivityLog={(entry) => setActivities((prev) => [entry, ...prev])}
               />
+            </section>
+          </TabsContent>
+
+          <TabsContent value="signals" className="m-0 p-6">
+            {/* Signal History */}
+            <section>
+              <h3 className="mb-4 text-sm font-medium uppercase tracking-wider text-[--foreground-subtle]">
+                Signal History
+              </h3>
+              <SignalTimeline signals={signalHistory} />
             </section>
           </TabsContent>
 
