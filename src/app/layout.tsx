@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { ClientProviders } from "@/components/providers/client-providers";
 
 export const metadata: Metadata = {
   title: "LeadDrip",
-  description: "B2B lead intelligence platform",
+  description: "AI-powered lead intelligence platform",
 };
 
 export default function RootLayout({
@@ -16,13 +17,9 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap"
-          rel="stylesheet"
-        />
       </head>
       <body>
-        {children}
+        <ClientProviders>{children}</ClientProviders>
       </body>
     </html>
   );
