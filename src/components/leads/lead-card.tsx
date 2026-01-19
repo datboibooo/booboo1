@@ -11,6 +11,9 @@ import {
   ShieldCheck,
   AlertTriangle,
   Link2,
+  Linkedin,
+  Mail,
+  MoreHorizontal,
 } from "lucide-react";
 import { LeadRecord } from "@/lib/schemas";
 import { Badge } from "@/components/ui/badge";
@@ -239,24 +242,45 @@ export function LeadCard({
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => onStatusChange?.("skip")}
-            className="h-7 text-xs gap-1"
+            onClick={() => onStatusChange?.("contacted")}
+            className={cn(
+              "h-7 text-xs gap-1",
+              lead.status === "contacted" && "text-[--accent]"
+            )}
+            title="Mark as contacted"
           >
-            <SkipForward className="h-3.5 w-3.5" />
-            Skip
+            <Mail className={cn("h-3.5 w-3.5", lead.status === "contacted" && "fill-current")} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => window.open(lead.linkedinSearchUrl, "_blank")}
+            className="h-7 text-xs gap-1"
+            title="Search on LinkedIn"
+          >
+            <Linkedin className="h-3.5 w-3.5" />
           </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={handleCopyOpener}
             className="h-7 text-xs gap-1"
+            title="Copy opener"
           >
             {copied ? (
               <Check className="h-3.5 w-3.5 text-[--success]" />
             ) : (
               <Copy className="h-3.5 w-3.5" />
             )}
-            {copied ? "Copied" : "Copy"}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onStatusChange?.("skip")}
+            className="h-7 text-xs gap-1 text-[--foreground-muted]"
+            title="Skip"
+          >
+            <SkipForward className="h-3.5 w-3.5" />
           </Button>
         </div>
 

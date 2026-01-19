@@ -18,6 +18,7 @@ import {
   Mail,
   Search,
   Sparkles,
+  Building2,
 } from "lucide-react";
 import { LeadRecord } from "@/lib/schemas";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,7 @@ import {
 } from "@/lib/store";
 import { OutreachPanel } from "./outreach-panel";
 import { SignalTimeline, generateDemoSignals } from "./signal-timeline";
+import { EnrichmentPanel } from "./enrichment-panel";
 
 interface CompanyBriefProps {
   lead: LeadRecord;
@@ -216,6 +218,13 @@ export function CompanyBrief({
               Evidence
             </TabsTrigger>
             <TabsTrigger
+              value="enrichment"
+              className="border-b-2 border-transparent data-[state=active]:border-[--accent] data-[state=active]:bg-transparent rounded-none"
+            >
+              <Building2 className="mr-2 h-4 w-4" />
+              Enrich
+            </TabsTrigger>
+            <TabsTrigger
               value="outreach"
               className="border-b-2 border-transparent data-[state=active]:border-[--accent] data-[state=active]:bg-transparent rounded-none"
             >
@@ -336,6 +345,14 @@ export function CompanyBrief({
                 ))}
               </div>
             </section>
+          </TabsContent>
+
+          <TabsContent value="enrichment" className="m-0 p-6">
+            {/* Company Enrichment Data */}
+            <EnrichmentPanel
+              companyName={lead.companyName}
+              domain={lead.domain}
+            />
           </TabsContent>
 
           <TabsContent value="outreach" className="m-0 p-6">
