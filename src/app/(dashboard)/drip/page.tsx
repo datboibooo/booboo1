@@ -119,22 +119,44 @@ export default function DripFeedPage() {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      const response = await fetch("/api/leads/generate", {
+      // Call the real RSS endpoint with verification enabled
+      const response = await fetch("/api/leads/rss", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "hunt", limit: 50 }),
+        body: JSON.stringify({
+          maxItems: 15,
+          enableVerification: true,
+          verificationMinConfidence: 0.45,
+          skipOpeners: false,
+        }),
       });
       const data = await response.json();
 
+      if (data.error) {
+        console.error("RSS lead generation error:", data.error, data.message || data.details);
+        // Fall back to demo data
+        const storedLeads = getStoredLeads();
+        setLeads(storedLeads);
+        setIsDemo(true);
+        return;
+      }
+
       if (data.leads && data.leads.length > 0) {
         setLeads(data.leads);
-        setIsDemo(data.isDemo || false);
+        setIsDemo(false);
         // Save to localStorage for persistence
         saveLeads(data.leads);
+        console.log(`Generated ${data.leads.length} leads from RSS`, data.stats);
+      } else {
+        console.warn("No leads generated from RSS");
+        // Fall back to demo data
+        const storedLeads = getStoredLeads();
+        setLeads(storedLeads);
+        setIsDemo(true);
       }
     } catch (error) {
       console.error("Failed to generate leads:", error);
-      // If API fails, regenerate from localStorage (already has demo data)
+      // If API fails, fall back to localStorage
       const storedLeads = getStoredLeads();
       setLeads(storedLeads);
       setIsDemo(true);
