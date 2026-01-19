@@ -119,6 +119,53 @@ export function updateLead(leadId: string, updates: Partial<LeadRecord>): LeadRe
   return leads[index];
 }
 
+// Add new leads from RSS, avoiding duplicates by domain
+export function addNewLeads(newLeads: LeadRecord[]): { added: number; skipped: number } {
+  if (typeof window === "undefined") return { added: 0, skipped: 0 };
+
+  const existingLeads = getStoredLeads();
+  const existingDomains = new Set(existingLeads.map(l => l.domain.toLowerCase()));
+
+  let added = 0;
+  let skipped = 0;
+
+  for (const lead of newLeads) {
+    const domain = lead.domain.toLowerCase();
+    if (existingDomains.has(domain)) {
+      skipped++;
+      continue;
+    }
+
+    existingLeads.unshift(lead); // Add to beginning (newest first)
+    existingDomains.add(domain);
+    added++;
+  }
+
+  // Keep only last 500 leads
+  const trimmed = existingLeads.slice(0, 500);
+  saveLeads(trimmed);
+
+  return { added, skipped };
+}
+
+// Clear all leads and start fresh
+export function clearLeads(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(STORAGE_KEYS.LEADS);
+}
+
+// Get leads count by status
+export function getLeadStats(): { total: number; new: number; saved: number; skipped: number; contacted: number } {
+  const leads = getStoredLeads();
+  return {
+    total: leads.length,
+    new: leads.filter(l => l.status === "new").length,
+    saved: leads.filter(l => l.status === "saved").length,
+    skipped: leads.filter(l => l.status === "skip").length,
+    contacted: leads.filter(l => l.status === "contacted").length,
+  };
+}
+
 // Lists (for Watch mode)
 export interface WatchList {
   id: string;
