@@ -36,6 +36,7 @@ import {
   DEFAULT_USER_CONFIG,
 } from "@/lib/fixtures/demo-data";
 import { UserConfig, SignalDefinition, SignalCategory } from "@/lib/schemas";
+import { saveUserConfig, setOnboardingComplete } from "@/lib/store";
 
 const STEPS = [
   { id: 1, title: "What You Sell", icon: Zap },
@@ -146,6 +147,11 @@ export default function OnboardingPage() {
   const handleComplete = async () => {
     const finalConfig = { ...config, onboardingComplete: true };
 
+    // Save to localStorage for demo mode
+    saveUserConfig(finalConfig);
+    setOnboardingComplete(true);
+
+    // Also try to save to API (will work when backend is connected)
     try {
       await fetch("/api/config", {
         method: "PUT",
@@ -153,7 +159,7 @@ export default function OnboardingPage() {
         body: JSON.stringify(finalConfig),
       });
     } catch (error) {
-      console.error("Failed to save config:", error);
+      console.error("Failed to save config to API:", error);
     }
 
     router.push("/drip");

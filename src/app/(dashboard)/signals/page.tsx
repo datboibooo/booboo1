@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/sheet";
 import { SignalDefinition, SignalCategory, SignalPriority } from "@/lib/schemas";
 import { DEFAULT_SIGNAL_PRESETS, getAllDefaultSignals } from "@/lib/fixtures/demo-data";
+import { getUserConfig, saveUserConfig, toggleSignal, addCustomSignal, deleteSignal } from "@/lib/store";
 import {
   Plus,
   Play,
@@ -93,12 +94,11 @@ const CATEGORY_CONFIG: Record<
 };
 
 export default function SignalsStudioPage() {
-  const [signals, setSignals] = React.useState<SignalDefinition[]>(
-    getAllDefaultSignals()
-  );
+  const [signals, setSignals] = React.useState<SignalDefinition[]>([]);
   const [selectedSignal, setSelectedSignal] =
     React.useState<SignalDefinition | null>(null);
   const [isEditing, setIsEditing] = React.useState(false);
+  const [isCreating, setIsCreating] = React.useState(false);
   const [testResult, setTestResult] = React.useState<{
     queriesExecuted: string[];
     matchesFound: number;
@@ -110,6 +110,12 @@ export default function SignalsStudioPage() {
     };
   } | null>(null);
   const [isTesting, setIsTesting] = React.useState(false);
+
+  // Load signals from localStorage on mount
+  React.useEffect(() => {
+    const config = getUserConfig();
+    setSignals(config.signals);
+  }, []);
 
   const signalsByCategory = React.useMemo(() => {
     const grouped: Record<SignalCategory, SignalDefinition[]> = {
@@ -131,11 +137,21 @@ export default function SignalsStudioPage() {
   }, [signals]);
 
   const handleToggleSignal = (signalId: string) => {
-    setSignals((prev) =>
-      prev.map((s) =>
+    setSignals((prev) => {
+      const updated = prev.map((s) =>
         s.id === signalId ? { ...s, enabled: !s.enabled } : s
-      )
-    );
+      );
+      // Persist to localStorage
+      const config = getUserConfig();
+      config.signals = updated;
+      saveUserConfig(config);
+      return updated;
+    });
+    // Also update toggleSignal helper
+    const signal = signals.find(s => s.id === signalId);
+    if (signal) {
+      toggleSignal(signalId, !signal.enabled);
+    }
   };
 
   const handleTestSignal = async (signal: SignalDefinition) => {
@@ -159,11 +175,31 @@ export default function SignalsStudioPage() {
   };
 
   const handleSaveSignal = (updatedSignal: SignalDefinition) => {
-    setSignals((prev) =>
-      prev.map((s) => (s.id === updatedSignal.id ? updatedSignal : s))
-    );
+    setSignals((prev) => {
+      const updated = prev.map((s) => (s.id === updatedSignal.id ? updatedSignal : s));
+      // Persist to localStorage
+      const config = getUserConfig();
+      config.signals = updated;
+      saveUserConfig(config);
+      return updated;
+    });
     setIsEditing(false);
     setSelectedSignal(updatedSignal);
+  };
+
+  const handleCreateSignal = (newSignal: Omit<SignalDefinition, "id">) => {
+    const created = addCustomSignal(newSignal);
+    setSignals((prev) => [...prev, created]);
+    setIsCreating(false);
+    setSelectedSignal(created);
+  };
+
+  const handleDeleteSignal = (signalId: string) => {
+    deleteSignal(signalId);
+    setSignals((prev) => prev.filter((s) => s.id !== signalId));
+    if (selectedSignal?.id === signalId) {
+      setSelectedSignal(null);
+    }
   };
 
   const enabledCount = signals.filter((s) => s.enabled && !s.isDisqualifier)
@@ -178,7 +214,7 @@ export default function SignalsStudioPage() {
         subtitle={`${enabledCount} signals active • ${disqualifierCount} disqualifiers`}
         showSearch={false}
         actions={
-          <Button variant="default" size="sm">
+          <Button variant="default" size="sm" onClick={() => setIsCreating(true)}>
             <Plus className="h-4 w-4" />
             New Signal
           </Button>
@@ -293,6 +329,16 @@ export default function SignalsStudioPage() {
                       <Play className="h-4 w-4" />
                       {isTesting ? "Testing..." : "Test"}
                     </Button>
+                    {selectedSignal.id.startsWith("sig_custom_") && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeleteSignal(selectedSignal.id)}
+                        className="text-[--priority-high] hover:bg-[--priority-high]/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </div>
 
@@ -476,6 +522,22 @@ export default function SignalsStudioPage() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Create Signal Sheet */}
+      <Sheet open={isCreating} onOpenChange={setIsCreating}>
+        <SheetContent side="right" className="w-full sm:max-w-lg">
+          <SheetHeader>
+            <SheetTitle>Create New Signal</SheetTitle>
+            <SheetDescription>
+              Define a new buying signal to track
+            </SheetDescription>
+          </SheetHeader>
+          <SignalCreateForm
+            onCreate={handleCreateSignal}
+            onCancel={() => setIsCreating(false)}
+          />
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
@@ -589,6 +651,157 @@ function SignalEditForm({
       <div className="flex gap-2">
         <Button onClick={() => onSave(formData)} className="flex-1">
           Save Changes
+        </Button>
+        <Button variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function SignalCreateForm({
+  onCreate,
+  onCancel,
+}: {
+  onCreate: (signal: Omit<SignalDefinition, "id">) => void;
+  onCancel: () => void;
+}) {
+  const [formData, setFormData] = React.useState<Omit<SignalDefinition, "id">>({
+    name: "",
+    question: "Has {account} ...",
+    category: "funding_corporate",
+    priority: "medium",
+    weight: 6,
+    queryTemplates: [],
+    acceptedSources: ["news", "press_release", "company_site"],
+    isDisqualifier: false,
+    enabled: true,
+  });
+
+  const isValid = formData.name.trim() && formData.queryTemplates.length > 0;
+
+  return (
+    <div className="mt-6 space-y-6">
+      <div>
+        <Label htmlFor="create-name">Name</Label>
+        <Input
+          id="create-name"
+          value={formData.name}
+          onChange={(e) =>
+            setFormData((f) => ({ ...f, name: e.target.value }))
+          }
+          placeholder="e.g., New Office Opening"
+          className="mt-1"
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="create-question">Question</Label>
+        <Textarea
+          id="create-question"
+          value={formData.question}
+          onChange={(e) =>
+            setFormData((f) => ({ ...f, question: e.target.value }))
+          }
+          className="mt-1"
+          rows={3}
+        />
+        <p className="mt-1 text-xs text-[--foreground-subtle]">
+          Use {"{account}"} as placeholder for company name
+        </p>
+      </div>
+
+      <div>
+        <Label htmlFor="create-category">Category</Label>
+        <Select
+          value={formData.category}
+          onValueChange={(v) =>
+            setFormData((f) => ({ ...f, category: v as SignalCategory }))
+          }
+        >
+          <SelectTrigger className="mt-1">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(CATEGORY_CONFIG).map(([key, config]) => (
+              <SelectItem key={key} value={key}>
+                {config.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="create-priority">Priority</Label>
+          <Select
+            value={formData.priority}
+            onValueChange={(v) =>
+              setFormData((f) => ({ ...f, priority: v as SignalPriority }))
+            }
+          >
+            <SelectTrigger className="mt-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="high">High</SelectItem>
+              <SelectItem value="medium">Medium</SelectItem>
+              <SelectItem value="low">Low</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label htmlFor="create-weight">Weight (0-10)</Label>
+          <Input
+            id="create-weight"
+            type="number"
+            min={0}
+            max={10}
+            value={formData.weight}
+            onChange={(e) =>
+              setFormData((f) => ({
+                ...f,
+                weight: parseInt(e.target.value) || 0,
+              }))
+            }
+            className="mt-1"
+          />
+        </div>
+      </div>
+
+      <div>
+        <Label htmlFor="create-templates">Query Templates (one per line)</Label>
+        <Textarea
+          id="create-templates"
+          value={formData.queryTemplates.join("\n")}
+          onChange={(e) =>
+            setFormData((f) => ({
+              ...f,
+              queryTemplates: e.target.value.split("\n").filter(Boolean),
+            }))
+          }
+          placeholder="announces new office&#10;opens location in&#10;expands headquarters"
+          className="mt-1 font-mono text-sm"
+          rows={4}
+        />
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Switch
+          checked={formData.isDisqualifier}
+          onCheckedChange={(checked) =>
+            setFormData((f) => ({ ...f, isDisqualifier: checked }))
+          }
+        />
+        <Label>Is Disqualifier</Label>
+      </div>
+
+      <div className="flex gap-2">
+        <Button onClick={() => onCreate(formData)} disabled={!isValid} className="flex-1">
+          Create Signal
         </Button>
         <Button variant="outline" onClick={onCancel}>
           Cancel

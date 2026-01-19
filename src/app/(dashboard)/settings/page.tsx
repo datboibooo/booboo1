@@ -27,6 +27,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getUserConfig, saveUserConfig, getStoredLeads, getWatchLists, resetAllData } from "@/lib/store";
 
 const TIMEZONES = [
   "America/New_York",
@@ -57,10 +58,43 @@ export default function SettingsPage() {
   const [dncInput, setDncInput] = React.useState("");
   const [dncList, setDncList] = React.useState<
     Array<{ type: string; value: string }>
-  >([
-    { type: "domain", value: "competitor.com" },
-    { type: "domain", value: "blocked.io" },
-  ]);
+  >([]);
+  const [isSaving, setIsSaving] = React.useState(false);
+  const [saveMessage, setSaveMessage] = React.useState("");
+
+  // Load config from localStorage on mount
+  React.useEffect(() => {
+    const stored = getUserConfig();
+    setConfig({
+      schedule: stored.schedule,
+      modes: stored.modes,
+    });
+    // Load DNC list (we'll store it in localStorage too)
+    const dncStored = localStorage.getItem("leaddrip_dnc_list");
+    if (dncStored) {
+      setDncList(JSON.parse(dncStored));
+    }
+  }, []);
+
+  // Auto-save config when it changes
+  const saveConfig = React.useCallback(() => {
+    const stored = getUserConfig();
+    stored.schedule = config.schedule;
+    stored.modes = config.modes;
+    saveUserConfig(stored);
+    setIsSaving(true);
+    setSaveMessage("Saved");
+    setTimeout(() => {
+      setIsSaving(false);
+      setSaveMessage("");
+    }, 2000);
+  }, [config]);
+
+  // Debounced save
+  React.useEffect(() => {
+    const timer = setTimeout(saveConfig, 500);
+    return () => clearTimeout(timer);
+  }, [config, saveConfig]);
 
   const providerStatus = {
     llm: {
@@ -78,22 +112,55 @@ export default function SettingsPage() {
 
   const handleAddToDNC = () => {
     if (!dncInput.trim()) return;
-    setDncList((prev) => [
-      ...prev,
+    const newList = [
+      ...dncList,
       { type: "domain", value: dncInput.trim() },
-    ]);
+    ];
+    setDncList(newList);
+    localStorage.setItem("leaddrip_dnc_list", JSON.stringify(newList));
     setDncInput("");
   };
 
   const handleRemoveFromDNC = (value: string) => {
-    setDncList((prev) => prev.filter((item) => item.value !== value));
+    const newList = dncList.filter((item) => item.value !== value);
+    setDncList(newList);
+    localStorage.setItem("leaddrip_dnc_list", JSON.stringify(newList));
+  };
+
+  const handleExportData = () => {
+    const leads = getStoredLeads();
+    const lists = getWatchLists();
+    const userConfig = getUserConfig();
+
+    const exportData = {
+      exportedAt: new Date().toISOString(),
+      leads,
+      lists,
+      config: userConfig,
+      dncList,
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `leaddrip-export-${new Date().toISOString().split("T")[0]}.json`;
+    a.click();
+  };
+
+  const handleResetData = () => {
+    if (confirm("Are you sure you want to reset all data? This cannot be undone.")) {
+      resetAllData();
+      localStorage.removeItem("leaddrip_dnc_list");
+      window.location.reload();
+    }
   };
 
   return (
     <div className="flex h-full flex-col">
       <Header
         title="Settings"
-        subtitle="Configure your LeadDrip instance"
+        subtitle={saveMessage || "Configure your LeadDrip instance"}
         showSearch={false}
       />
 
@@ -411,10 +478,32 @@ export default function SettingsPage() {
                   Download all your leads, lists, and configuration
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <Button variant="outline">
+              <CardContent className="flex gap-2">
+                <Button variant="outline" onClick={handleExportData}>
                   <Download className="h-4 w-4" />
-                  Export to CSV
+                  Export to JSON
+                </Button>
+              </CardContent>
+            </Card>
+          </section>
+
+          {/* Danger Zone */}
+          <section className="mb-8">
+            <h2 className="text-lg font-semibold mb-4 text-[--priority-high]">Danger Zone</h2>
+            <Card className="border-[--priority-high]/30">
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2 text-[--priority-high]">
+                  <Trash2 className="h-4 w-4" />
+                  Reset All Data
+                </CardTitle>
+                <CardDescription>
+                  Permanently delete all leads, lists, and settings. This cannot be undone.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button variant="outline" onClick={handleResetData} className="text-[--priority-high] border-[--priority-high]/30 hover:bg-[--priority-high]/10">
+                  <Trash2 className="h-4 w-4" />
+                  Reset Everything
                 </Button>
               </CardContent>
             </Card>

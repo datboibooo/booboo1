@@ -486,12 +486,22 @@ export function generateDemoLeads(count: number = 50): LeadRecord[] {
 }
 
 export function isDemoMode(): boolean {
+  // Check if Supabase is configured
+  const hasSupabase = !!(
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
+
+  // Check for LLM keys
   const hasLLMKey = !!(process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY);
+
+  // Check for search keys
   const hasSearchKey = !!(
     process.env.TAVILY_API_KEY ||
     process.env.SERPAPI_KEY ||
     process.env.BING_SEARCH_KEY
   );
 
-  return !hasLLMKey || !hasSearchKey || process.env.DEMO_MODE === "true";
+  // Demo mode if any required service is missing or explicitly enabled
+  return !hasSupabase || !hasLLMKey || !hasSearchKey || process.env.DEMO_MODE === "true";
 }

@@ -28,6 +28,7 @@ import {
   SlidersHorizontal,
   AlertCircle,
 } from "lucide-react";
+import { getStoredLeads, saveLeads, updateLead } from "@/lib/store";
 
 export default function DripFeedPage() {
   const [leads, setLeads] = React.useState<LeadRecord[]>([]);
@@ -59,10 +60,25 @@ export default function DripFeedPage() {
       const response = await fetch(`/api/leads?${params.toString()}`);
       const data = await response.json();
 
-      setLeads(data.leads || []);
-      setIsDemo(data.isDemo || false);
+      if (data.leads && data.leads.length > 0) {
+        setLeads(data.leads);
+        setIsDemo(data.isDemo || false);
+        // Save to localStorage for persistence
+        if (data.isDemo) {
+          saveLeads(data.leads);
+        }
+      } else {
+        // Fall back to localStorage
+        const storedLeads = getStoredLeads();
+        setLeads(storedLeads);
+        setIsDemo(true);
+      }
     } catch (error) {
-      console.error("Failed to fetch leads:", error);
+      console.error("Failed to fetch leads from API:", error);
+      // Fall back to localStorage
+      const storedLeads = getStoredLeads();
+      setLeads(storedLeads);
+      setIsDemo(true);
     } finally {
       setIsLoading(false);
     }
@@ -82,12 +98,18 @@ export default function DripFeedPage() {
       });
       const data = await response.json();
 
-      if (data.leads) {
+      if (data.leads && data.leads.length > 0) {
         setLeads(data.leads);
         setIsDemo(data.isDemo || false);
+        // Save to localStorage for persistence
+        saveLeads(data.leads);
       }
     } catch (error) {
       console.error("Failed to generate leads:", error);
+      // If API fails, regenerate from localStorage (already has demo data)
+      const storedLeads = getStoredLeads();
+      setLeads(storedLeads);
+      setIsDemo(true);
     } finally {
       setIsRefreshing(false);
     }
@@ -98,16 +120,22 @@ export default function DripFeedPage() {
     status: LeadRecord["status"]
   ) => {
     // Optimistic update
-    setLeads((prev) =>
-      prev.map((l) => (l.id === leadId ? { ...l, status } : l))
-    );
+    setLeads((prev) => {
+      const updated = prev.map((l) => (l.id === leadId ? { ...l, status } : l));
+      // Persist to localStorage
+      saveLeads(updated);
+      return updated;
+    });
 
     // Also update selected lead if open
     if (selectedLead?.id === leadId) {
       setSelectedLead((prev) => (prev ? { ...prev, status } : null));
     }
 
-    // API call
+    // Also update in localStorage store
+    updateLead(leadId, { status });
+
+    // API call (will work when backend is connected)
     try {
       await fetch(`/api/leads/${leadId}`, {
         method: "PATCH",
@@ -115,7 +143,7 @@ export default function DripFeedPage() {
         body: JSON.stringify({ status }),
       });
     } catch (error) {
-      console.error("Failed to update lead status:", error);
+      console.error("Failed to update lead status via API:", error);
     }
   };
 

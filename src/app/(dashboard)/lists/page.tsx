@@ -31,6 +31,16 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  getWatchLists,
+  saveWatchLists,
+  addWatchList,
+  deleteWatchList,
+  addAccountToList,
+  removeAccountFromList,
+  type WatchList as StoredWatchList,
+  type WatchAccount,
+} from "@/lib/store";
 
 interface WatchList {
   id: string;
@@ -40,6 +50,8 @@ interface WatchList {
   accountCount: number;
   createdAt: string;
   lastScoredAt?: string;
+  color?: string;
+  accounts?: WatchAccount[];
 }
 
 export default function ListsPage() {
@@ -64,31 +76,84 @@ export default function ListsPage() {
 
   const fetchLists = async () => {
     try {
+      // Try API first
       const response = await fetch("/api/watch");
       const data = await response.json();
-      setLists(data.lists || []);
+
+      if (data.lists && data.lists.length > 0) {
+        setLists(data.lists);
+      } else {
+        // Fall back to localStorage
+        const storedLists = getWatchLists();
+        const mappedLists: WatchList[] = storedLists.map((l) => ({
+          id: l.id,
+          name: l.name,
+          description: null,
+          type: "watch" as const,
+          accountCount: l.accounts.length,
+          createdAt: l.createdAt,
+          color: l.color,
+          accounts: l.accounts,
+        }));
+        setLists(mappedLists);
+      }
     } catch (error) {
-      console.error("Failed to fetch lists:", error);
+      console.error("Failed to fetch lists from API:", error);
+      // Fall back to localStorage
+      const storedLists = getWatchLists();
+      const mappedLists: WatchList[] = storedLists.map((l) => ({
+        id: l.id,
+        name: l.name,
+        description: null,
+        type: "watch" as const,
+        accountCount: l.accounts.length,
+        createdAt: l.createdAt,
+        color: l.color,
+        accounts: l.accounts,
+      }));
+      setLists(mappedLists);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleCreateList = async (name: string, description: string) => {
+    // Create in localStorage first
+    const colors = ["#00d4aa", "#f59e0b", "#ef4444", "#8b5cf6", "#3b82f6"];
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    const newList = addWatchList(name, color);
+
+    const mappedList: WatchList = {
+      id: newList.id,
+      name: newList.name,
+      description,
+      type: "watch",
+      accountCount: 0,
+      createdAt: newList.createdAt,
+      color: newList.color,
+      accounts: [],
+    };
+
+    setLists((prev) => [mappedList, ...prev]);
+    setShowCreateSheet(false);
+
+    // Also try API (for when backend is connected)
     try {
-      const response = await fetch("/api/watch", {
+      await fetch("/api/watch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, description }),
       });
-
-      const data = await response.json();
-      if (data.list) {
-        setLists((prev) => [{ ...data.list, accountCount: 0 }, ...prev]);
-        setShowCreateSheet(false);
-      }
     } catch (error) {
-      console.error("Failed to create list:", error);
+      console.error("Failed to create list via API:", error);
+    }
+  };
+
+  const handleDeleteList = (listId: string) => {
+    deleteWatchList(listId);
+    setLists((prev) => prev.filter((l) => l.id !== listId));
+    if (selectedList?.id === listId) {
+      setSelectedList(null);
     }
   };
 
@@ -98,36 +163,65 @@ export default function ListsPage() {
     setIsImporting(true);
     setImportResult(null);
 
-    try {
-      const domains = importText
-        .split(/[\n,]/)
-        .map((d) => d.trim())
-        .filter(Boolean);
+    const domains = importText
+      .split(/[\n,]/)
+      .map((d) => d.trim())
+      .filter(Boolean);
 
-      const response = await fetch("/api/watch/import", {
+    // Validate domains (basic check)
+    const validDomains: string[] = [];
+    const invalidDomains: string[] = [];
+
+    for (const domain of domains) {
+      // Basic domain validation
+      if (/^[a-zA-Z0-9][a-zA-Z0-9-]*\.[a-zA-Z]{2,}$/.test(domain) || domain.includes(".")) {
+        validDomains.push(domain);
+      } else {
+        invalidDomains.push(domain);
+      }
+    }
+
+    // Add to localStorage
+    let imported = 0;
+    for (const domain of validDomains) {
+      const companyName = domain.split(".")[0].charAt(0).toUpperCase() + domain.split(".")[0].slice(1);
+      const result = addAccountToList(selectedList.id, { domain, companyName });
+      if (result) {
+        imported++;
+      }
+    }
+
+    const result = {
+      imported,
+      skipped: domains.length - imported,
+      invalidDomains,
+    };
+
+    setImportResult(result);
+
+    // Update list count
+    if (imported > 0) {
+      setLists((prev) =>
+        prev.map((l) =>
+          l.id === selectedList.id
+            ? { ...l, accountCount: l.accountCount + imported }
+            : l
+        )
+      );
+    }
+
+    // Also try API (for when backend is connected)
+    try {
+      await fetch("/api/watch/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ listId: selectedList.id, domains }),
       });
-
-      const data = await response.json();
-      setImportResult(data);
-
-      // Update list count
-      if (data.imported > 0) {
-        setLists((prev) =>
-          prev.map((l) =>
-            l.id === selectedList.id
-              ? { ...l, accountCount: l.accountCount + data.imported }
-              : l
-          )
-        );
-      }
     } catch (error) {
-      console.error("Failed to import domains:", error);
-    } finally {
-      setIsImporting(false);
+      console.error("Failed to import domains via API:", error);
     }
+
+    setIsImporting(false);
   };
 
   const totalAccounts = lists.reduce((sum, l) => sum + l.accountCount, 0);
@@ -237,8 +331,13 @@ export default function ListsPage() {
                         >
                           <Upload className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="sm">
-                          <MoreVertical className="h-4 w-4" />
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteList(list.id)}
+                          className="text-[--priority-high] hover:bg-[--priority-high]/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
