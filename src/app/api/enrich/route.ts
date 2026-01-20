@@ -16,9 +16,11 @@ export interface UsageStats {
 export interface EnrichResponse {
   success: boolean;
   data?: CompanyResearch | {
+    companyName?: string;
     description?: string;
     signals: string[];
     techStack: string[];
+    error?: string;
   };
   error?: string;
   cached?: boolean;
