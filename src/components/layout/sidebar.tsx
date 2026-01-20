@@ -5,108 +5,97 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Zap,
-  Target,
-  Eye,
   Settings,
-  List,
-  Radio,
   BarChart3,
+  Sparkles,
+  LogOut,
+  User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/supabase/auth-context";
+import { AuthModal } from "@/components/auth/auth-modal";
 
 interface SidebarProps {
   className?: string;
 }
 
 const navItems = [
-  { title: "Drip Feed", href: "/drip", icon: Zap },
+  { title: "Leads", href: "/drip", icon: Zap },
   { title: "Analytics", href: "/analytics", icon: BarChart3 },
-  { title: "Signals", href: "/signals", icon: Radio },
-  { title: "Lists", href: "/lists", icon: List },
   { title: "Settings", href: "/settings", icon: Settings },
 ];
 
 export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname();
-  const [mode, setMode] = React.useState<"hunt" | "watch">("hunt");
+  const { user, isLoading, signOut } = useAuth();
+  const [showAuthModal, setShowAuthModal] = React.useState(false);
+
+  const initials = user?.email ? user.email.slice(0, 2).toUpperCase() : "?";
 
   return (
-    <aside className={cn("sidebar flex h-full w-52 flex-col", className)}>
+    <aside className={cn("flex h-full w-16 flex-col items-center py-4 border-r border-[--border]", className)}>
       {/* Logo */}
-      <div className="flex h-14 items-center gap-2.5 px-4 border-b border-[--border]">
-        <div className="flex h-7 w-7 items-center justify-center rounded bg-[--foreground] text-[--background]">
-          <Zap className="h-4 w-4" />
-        </div>
-        <span className="font-semibold">LeadDrip</span>
-      </div>
-
-      {/* Mode Toggle */}
-      <div className="p-3 border-b border-[--border]">
-        <div className="flex rounded bg-[--background-secondary] p-0.5">
-          <button
-            onClick={() => setMode("hunt")}
-            className={cn(
-              "flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 text-xs font-medium rounded transition-colors",
-              mode === "hunt"
-                ? "bg-[--background] text-[--foreground] shadow-sm"
-                : "text-[--foreground-muted] hover:text-[--foreground]"
-            )}
-          >
-            <Target className="h-3.5 w-3.5" />
-            Hunt
-          </button>
-          <button
-            onClick={() => setMode("watch")}
-            className={cn(
-              "flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 text-xs font-medium rounded transition-colors",
-              mode === "watch"
-                ? "bg-[--background] text-[--foreground] shadow-sm"
-                : "text-[--foreground-muted] hover:text-[--foreground]"
-            )}
-          >
-            <Eye className="h-3.5 w-3.5" />
-            Watch
-          </button>
-        </div>
-      </div>
+      <Link
+        href="/drip"
+        className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[--accent] to-purple-600 text-white mb-6"
+      >
+        <Sparkles className="h-5 w-5" />
+      </Link>
 
       {/* Navigation */}
-      <nav className="flex-1 p-2">
-        <ul className="space-y-0.5">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-2.5 rounded px-2.5 py-2 text-sm transition-colors",
-                    isActive
-                      ? "bg-[--background-secondary] text-[--foreground] font-medium"
-                      : "text-[--foreground-muted] hover:text-[--foreground] hover:bg-[--background-secondary]"
-                  )}
-                >
-                  <item.icon className="h-4 w-4" />
-                  {item.title}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+      <nav className="flex-1 flex flex-col items-center gap-2">
+        {navItems.map((item) => {
+          const isActive = pathname === item.href;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "flex h-10 w-10 items-center justify-center rounded-xl transition-all",
+                isActive
+                  ? "bg-[--background-secondary] text-[--foreground]"
+                  : "text-[--foreground-muted] hover:text-[--foreground] hover:bg-[--background-secondary]"
+              )}
+              title={item.title}
+            >
+              <item.icon className="h-5 w-5" />
+            </Link>
+          );
+        })}
       </nav>
 
       {/* User */}
-      <div className="p-3 border-t border-[--border]">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[--background-secondary] text-xs font-medium text-[--foreground-muted]">
-            U
+      <div className="mt-auto">
+        {isLoading ? (
+          <div className="h-10 w-10 rounded-xl bg-[--background-secondary] animate-pulse" />
+        ) : user ? (
+          <div className="flex flex-col items-center gap-2">
+            <button
+              onClick={() => signOut()}
+              className="flex h-10 w-10 items-center justify-center rounded-xl text-[--foreground-muted] hover:text-[--foreground] hover:bg-[--background-secondary] transition-all"
+              title="Sign out"
+            >
+              <LogOut className="h-5 w-5" />
+            </button>
+            <div
+              className="h-10 w-10 rounded-xl bg-gradient-to-br from-[--accent] to-purple-600 flex items-center justify-center text-white text-sm font-medium"
+              title={user.email || "User"}
+            >
+              {initials}
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">Demo User</p>
-            <p className="text-xs text-[--foreground-subtle]">Demo Mode</p>
-          </div>
-        </div>
+        ) : (
+          <button
+            onClick={() => setShowAuthModal(true)}
+            className="flex h-10 w-10 items-center justify-center rounded-xl bg-[--background-secondary] text-[--foreground-muted] hover:text-[--foreground] hover:bg-[--background-tertiary] transition-all"
+            title="Sign in"
+          >
+            <User className="h-5 w-5" />
+          </button>
+        )}
       </div>
+
+      <AuthModal open={showAuthModal} onOpenChange={setShowAuthModal} />
     </aside>
   );
 }
