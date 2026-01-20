@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { ToastProvider, useToast, setGlobalToast } from "@/components/ui/toast";
+import { AuthProvider } from "@/lib/supabase/auth-context";
 
 function ToastInitializer() {
   const { addToast } = useToast();
@@ -15,9 +16,11 @@ function ToastInitializer() {
 
 export function ClientProviders({ children }: { children: React.ReactNode }) {
   return (
-    <ToastProvider>
-      <ToastInitializer />
-      {children}
-    </ToastProvider>
+    <AuthProvider>
+      <ToastProvider>
+        <ToastInitializer />
+        {children}
+      </ToastProvider>
+    </AuthProvider>
   );
 }
