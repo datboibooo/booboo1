@@ -353,90 +353,196 @@ async function pollCrawlResults(jobId: string, maxAttempts = 30): Promise<Firecr
   return { success: false, error: "Crawl timed out" };
 }
 
+// ============= ENHANCED SIGNAL EXTRACTION =============
+// Comprehensive pattern matching for buying signals
+
+interface SignalPattern {
+  pattern: RegExp;
+  type: string;
+  subtype?: string;
+  confidence: "high" | "medium" | "low";
+  buyingIntent: "strong" | "moderate" | "weak";
+  extractContext?: boolean;
+}
+
+// Funding and financial signals - strong buying intent
+const FUNDING_PATTERNS: SignalPattern[] = [
+  { pattern: /raised?\s+\$(\d+(?:\.\d+)?)\s*(million|m|billion|b)/i, type: "Funding", subtype: "Round Closed", confidence: "high", buyingIntent: "strong", extractContext: true },
+  { pattern: /series\s+([a-e])\s*(?:funding|round)?/i, type: "Funding", subtype: "Series", confidence: "high", buyingIntent: "strong", extractContext: true },
+  { pattern: /seed\s+(?:round|funding|investment)/i, type: "Funding", subtype: "Seed", confidence: "high", buyingIntent: "strong" },
+  { pattern: /pre-seed|angel\s+(?:round|investment)/i, type: "Funding", subtype: "Pre-Seed", confidence: "high", buyingIntent: "moderate" },
+  { pattern: /(?:secured|closed|announced)\s+(?:a\s+)?\$[\d.]+/i, type: "Funding", subtype: "Capital Raised", confidence: "high", buyingIntent: "strong", extractContext: true },
+  { pattern: /ipo|going\s+public|public\s+offering/i, type: "Funding", subtype: "IPO", confidence: "high", buyingIntent: "strong" },
+  { pattern: /valuation\s+(?:of\s+)?\$[\d.]+\s*(?:million|billion|m|b)/i, type: "Funding", subtype: "Valuation", confidence: "medium", buyingIntent: "moderate", extractContext: true },
+  { pattern: /profitable|profitability|break-even/i, type: "Financial", subtype: "Profitability", confidence: "medium", buyingIntent: "moderate" },
+  { pattern: /revenue\s+(?:grew|growth|increased)\s*(?:by\s+)?(\d+)%/i, type: "Financial", subtype: "Revenue Growth", confidence: "high", buyingIntent: "strong", extractContext: true },
+  { pattern: /(\d+)x\s+(?:growth|revenue|arr)/i, type: "Financial", subtype: "Multiplier Growth", confidence: "high", buyingIntent: "strong", extractContext: true },
+];
+
+// Hiring and growth signals
+const HIRING_PATTERNS: SignalPattern[] = [
+  { pattern: /hiring\s+(\d+)\+?\s*(?:new\s+)?(?:people|employees|engineers|developers)/i, type: "Hiring", subtype: "Volume Hiring", confidence: "high", buyingIntent: "strong", extractContext: true },
+  { pattern: /(?:we're|we are)\s+(?:actively\s+)?hiring/i, type: "Hiring", subtype: "Active Hiring", confidence: "high", buyingIntent: "moderate" },
+  { pattern: /join\s+(?:our|the)\s+(?:growing\s+)?team/i, type: "Hiring", subtype: "Team Growth", confidence: "medium", buyingIntent: "moderate" },
+  { pattern: /(\d+)\+?\s+open\s+(?:positions|roles|jobs)/i, type: "Hiring", subtype: "Open Positions", confidence: "high", buyingIntent: "strong", extractContext: true },
+  { pattern: /doubl(?:ed?|ing)\s+(?:our\s+)?(?:team|headcount|staff)/i, type: "Hiring", subtype: "Rapid Growth", confidence: "high", buyingIntent: "strong" },
+  { pattern: /(?:building|growing)\s+(?:our\s+)?(?:engineering|sales|product)\s+team/i, type: "Hiring", subtype: "Department Growth", confidence: "high", buyingIntent: "strong", extractContext: true },
+  { pattern: /head\s+of\s+(\w+)|vp\s+(?:of\s+)?(\w+)|director\s+(?:of\s+)?(\w+)/i, type: "Hiring", subtype: "Leadership Hire", confidence: "high", buyingIntent: "strong", extractContext: true },
+  { pattern: /(?:new|first)\s+(?:cto|cfo|cmo|cro|cpo|vp|svp)/i, type: "Hiring", subtype: "Executive Hire", confidence: "high", buyingIntent: "strong", extractContext: true },
+];
+
+// Product and launch signals
+const PRODUCT_PATTERNS: SignalPattern[] = [
+  { pattern: /(?:launching|launched|announcing|announced|introducing|introduced)\s+(?:our\s+)?(?:new\s+)?(\w+(?:\s+\w+)?)/i, type: "Product", subtype: "Launch", confidence: "high", buyingIntent: "strong", extractContext: true },
+  { pattern: /new\s+(?:product|feature|platform|solution|service)/i, type: "Product", subtype: "New Feature", confidence: "medium", buyingIntent: "moderate" },
+  { pattern: /(?:beta|early\s+access|preview|pilot)/i, type: "Product", subtype: "Beta Phase", confidence: "medium", buyingIntent: "moderate" },
+  { pattern: /(?:v2|version\s+2|2\.0|major\s+update|redesign)/i, type: "Product", subtype: "Major Version", confidence: "medium", buyingIntent: "moderate" },
+  { pattern: /general\s+availability|ga\s+release|now\s+available/i, type: "Product", subtype: "GA Release", confidence: "high", buyingIntent: "strong" },
+  { pattern: /(?:integration|integrates?)\s+with\s+(\w+)/i, type: "Product", subtype: "Integration", confidence: "medium", buyingIntent: "moderate", extractContext: true },
+  { pattern: /api\s+(?:launch|release|available)/i, type: "Product", subtype: "API Release", confidence: "medium", buyingIntent: "moderate" },
+];
+
+// Expansion and market signals
+const EXPANSION_PATTERNS: SignalPattern[] = [
+  { pattern: /(?:new|opening|opened)\s+(?:office|headquarters|hq)\s+(?:in\s+)?(\w+(?:\s+\w+)?)/i, type: "Expansion", subtype: "New Office", confidence: "high", buyingIntent: "strong", extractContext: true },
+  { pattern: /expand(?:ing|ed)\s+(?:to|into)\s+(\w+(?:\s+\w+)?)/i, type: "Expansion", subtype: "Market Expansion", confidence: "high", buyingIntent: "strong", extractContext: true },
+  { pattern: /(?:entering|entered)\s+(?:the\s+)?(\w+)\s+market/i, type: "Expansion", subtype: "New Market", confidence: "high", buyingIntent: "strong", extractContext: true },
+  { pattern: /global\s+(?:expansion|growth|presence)/i, type: "Expansion", subtype: "Global Growth", confidence: "medium", buyingIntent: "moderate" },
+  { pattern: /(?:emea|apac|latam|europe|asia)\s+(?:expansion|launch|office)/i, type: "Expansion", subtype: "Regional Expansion", confidence: "high", buyingIntent: "strong", extractContext: true },
+  { pattern: /international\s+(?:growth|expansion|customers)/i, type: "Expansion", subtype: "International", confidence: "medium", buyingIntent: "moderate" },
+];
+
+// Partnership and acquisition signals
+const PARTNERSHIP_PATTERNS: SignalPattern[] = [
+  { pattern: /(?:partnered?|partnership)\s+with\s+(\w+(?:\s+\w+)?)/i, type: "Partnership", subtype: "Strategic Partner", confidence: "high", buyingIntent: "moderate", extractContext: true },
+  { pattern: /(?:acquired?|acquisition)\s+(?:of\s+)?(\w+(?:\s+\w+)?)/i, type: "M&A", subtype: "Acquisition", confidence: "high", buyingIntent: "strong", extractContext: true },
+  { pattern: /(?:merged?|merger)\s+with\s+(\w+)/i, type: "M&A", subtype: "Merger", confidence: "high", buyingIntent: "strong", extractContext: true },
+  { pattern: /strategic\s+(?:alliance|partnership|investment)/i, type: "Partnership", subtype: "Strategic Alliance", confidence: "high", buyingIntent: "moderate" },
+  { pattern: /(?:joined?|join(?:ing)?)\s+(?:the\s+)?(\w+)\s+(?:ecosystem|program|partner)/i, type: "Partnership", subtype: "Ecosystem", confidence: "medium", buyingIntent: "moderate", extractContext: true },
+];
+
+// Customer and traction signals
+const TRACTION_PATTERNS: SignalPattern[] = [
+  { pattern: /(\d+(?:k|m)?)\+?\s+(?:customers?|users?|companies)/i, type: "Traction", subtype: "Customer Count", confidence: "high", buyingIntent: "moderate", extractContext: true },
+  { pattern: /(\d+)%\s+(?:growth|increase)\s+in\s+(?:customers?|users?|arr|mrr)/i, type: "Traction", subtype: "Growth Rate", confidence: "high", buyingIntent: "strong", extractContext: true },
+  { pattern: /fortune\s+(?:500|100|50)|enterprise\s+customers?/i, type: "Traction", subtype: "Enterprise Clients", confidence: "high", buyingIntent: "moderate" },
+  { pattern: /(?:trusted\s+by|used\s+by|powers?)\s+(?:leading|top)\s+(?:companies|brands)/i, type: "Traction", subtype: "Brand Validation", confidence: "medium", buyingIntent: "moderate" },
+  { pattern: /\$(\d+(?:\.\d+)?)\s*(?:m|million|k|thousand)?\s*(?:arr|mrr|revenue)/i, type: "Traction", subtype: "Revenue Milestone", confidence: "high", buyingIntent: "strong", extractContext: true },
+  { pattern: /net\s+(?:revenue\s+)?retention\s+(?:of\s+)?(\d+)%/i, type: "Traction", subtype: "NRR", confidence: "high", buyingIntent: "strong", extractContext: true },
+];
+
+// Technology signals
+const TECH_PATTERNS: SignalPattern[] = [
+  // Cloud & Infrastructure
+  { pattern: /\b(aws|amazon\s+web\s+services)\b/i, type: "Tech Stack", subtype: "AWS", confidence: "high", buyingIntent: "weak" },
+  { pattern: /\b(gcp|google\s+cloud)\b/i, type: "Tech Stack", subtype: "GCP", confidence: "high", buyingIntent: "weak" },
+  { pattern: /\b(azure|microsoft\s+cloud)\b/i, type: "Tech Stack", subtype: "Azure", confidence: "high", buyingIntent: "weak" },
+  { pattern: /\b(kubernetes|k8s)\b/i, type: "Tech Stack", subtype: "Kubernetes", confidence: "high", buyingIntent: "weak" },
+  { pattern: /\bdocker\b/i, type: "Tech Stack", subtype: "Docker", confidence: "high", buyingIntent: "weak" },
+  { pattern: /\bterraform\b/i, type: "Tech Stack", subtype: "Terraform", confidence: "high", buyingIntent: "weak" },
+  // AI/ML
+  { pattern: /\b(openai|gpt-4|gpt-3|chatgpt|claude|anthropic)\b/i, type: "Tech Stack", subtype: "LLM/AI", confidence: "high", buyingIntent: "moderate" },
+  { pattern: /\b(machine\s+learning|ml\s+model|ai-powered)\b/i, type: "Tech Stack", subtype: "ML", confidence: "high", buyingIntent: "moderate" },
+  { pattern: /\b(tensorflow|pytorch|hugging\s*face)\b/i, type: "Tech Stack", subtype: "ML Framework", confidence: "high", buyingIntent: "moderate" },
+  // Languages & Frameworks
+  { pattern: /\b(react|vue|angular|svelte|next\.?js|nuxt)\b/i, type: "Tech Stack", subtype: "Frontend", confidence: "high", buyingIntent: "weak" },
+  { pattern: /\b(node\.?js|deno|bun)\b/i, type: "Tech Stack", subtype: "Node.js", confidence: "high", buyingIntent: "weak" },
+  { pattern: /\b(python|django|fastapi|flask)\b/i, type: "Tech Stack", subtype: "Python", confidence: "high", buyingIntent: "weak" },
+  { pattern: /\b(golang|go\s+lang|rust)\b/i, type: "Tech Stack", subtype: "Systems Lang", confidence: "high", buyingIntent: "weak" },
+  { pattern: /\btypescript\b/i, type: "Tech Stack", subtype: "TypeScript", confidence: "high", buyingIntent: "weak" },
+  // Data
+  { pattern: /\b(postgresql|postgres|mysql|mongodb|redis)\b/i, type: "Tech Stack", subtype: "Database", confidence: "high", buyingIntent: "weak" },
+  { pattern: /\b(snowflake|databricks|bigquery|redshift)\b/i, type: "Tech Stack", subtype: "Data Warehouse", confidence: "high", buyingIntent: "moderate" },
+  { pattern: /\b(kafka|rabbitmq|pulsar)\b/i, type: "Tech Stack", subtype: "Message Queue", confidence: "high", buyingIntent: "weak" },
+  { pattern: /\b(graphql|rest\s+api|grpc)\b/i, type: "Tech Stack", subtype: "API", confidence: "high", buyingIntent: "weak" },
+  // DevOps & Security
+  { pattern: /\b(soc\s*2|gdpr|hipaa|iso\s*27001)\b/i, type: "Compliance", subtype: "Security Cert", confidence: "high", buyingIntent: "moderate" },
+  { pattern: /\b(ci\/cd|github\s+actions|jenkins|circleci)\b/i, type: "Tech Stack", subtype: "CI/CD", confidence: "high", buyingIntent: "weak" },
+];
+
+// Industry vertical signals
+const INDUSTRY_PATTERNS: SignalPattern[] = [
+  { pattern: /\b(fintech|financial\s+technology|banking\s+tech)\b/i, type: "Industry", subtype: "Fintech", confidence: "high", buyingIntent: "weak" },
+  { pattern: /\b(healthtech|health\s+tech|healthcare\s+technology|medtech)\b/i, type: "Industry", subtype: "Healthtech", confidence: "high", buyingIntent: "weak" },
+  { pattern: /\b(edtech|education\s+technology)\b/i, type: "Industry", subtype: "Edtech", confidence: "high", buyingIntent: "weak" },
+  { pattern: /\b(proptech|real\s+estate\s+tech)\b/i, type: "Industry", subtype: "Proptech", confidence: "high", buyingIntent: "weak" },
+  { pattern: /\b(cleantech|climate\s+tech|green\s+tech)\b/i, type: "Industry", subtype: "Cleantech", confidence: "high", buyingIntent: "weak" },
+  { pattern: /\b(devtools|developer\s+tools|dev\s+experience)\b/i, type: "Industry", subtype: "DevTools", confidence: "high", buyingIntent: "weak" },
+  { pattern: /\b(saas|software\s+as\s+a\s+service|b2b\s+software)\b/i, type: "Industry", subtype: "SaaS", confidence: "medium", buyingIntent: "weak" },
+  { pattern: /\b(e-?commerce|online\s+retail|d2c|dtc)\b/i, type: "Industry", subtype: "E-commerce", confidence: "high", buyingIntent: "weak" },
+];
+
 // Extract signals from scraped content
 function extractSignals(content: string, url: string): CompanyResearch["signals"] {
   const signals: CompanyResearch["signals"] = [];
   const contentLower = content.toLowerCase();
+  const seenSignals = new Set<string>();
 
-  // Funding signals
-  const fundingPatterns = [
-    { pattern: /raised?\s+\$[\d.]+\s*(million|m|billion|b)/i, type: "Funding Round" },
-    { pattern: /series\s+[a-d]/i, type: "Funding Stage" },
-    { pattern: /seed\s+(round|funding)/i, type: "Seed Funding" },
-    { pattern: /ipo|going\s+public/i, type: "IPO Signal" },
+  // Helper to add signal without duplicates
+  const addSignal = (
+    type: string,
+    content: string,
+    confidence: "high" | "medium" | "low",
+    subtype?: string
+  ) => {
+    const key = `${type}:${subtype || ""}:${content.toLowerCase().slice(0, 50)}`;
+    if (seenSignals.has(key)) return;
+    seenSignals.add(key);
+    signals.push({
+      type: subtype ? `${type} - ${subtype}` : type,
+      content,
+      source: url,
+      confidence,
+    });
+  };
+
+  // Helper to extract context around a match
+  const extractContext = (match: RegExpMatchArray, maxLength = 100): string => {
+    const fullMatch = match[0];
+    const index = match.index || 0;
+    const start = Math.max(0, index - 30);
+    const end = Math.min(content.length, index + fullMatch.length + 50);
+    let context = content.slice(start, end).replace(/\s+/g, " ").trim();
+    if (context.length > maxLength) {
+      context = context.slice(0, maxLength) + "...";
+    }
+    return context;
+  };
+
+  // Process all pattern groups
+  const allPatterns = [
+    ...FUNDING_PATTERNS,
+    ...HIRING_PATTERNS,
+    ...PRODUCT_PATTERNS,
+    ...EXPANSION_PATTERNS,
+    ...PARTNERSHIP_PATTERNS,
+    ...TRACTION_PATTERNS,
+    ...TECH_PATTERNS,
+    ...INDUSTRY_PATTERNS,
   ];
 
-  for (const { pattern, type } of fundingPatterns) {
-    const match = content.match(pattern);
-    if (match) {
-      signals.push({
-        type,
-        content: match[0],
-        source: url,
-        confidence: "high",
-      });
+  for (const patternDef of allPatterns) {
+    const matches = content.matchAll(new RegExp(patternDef.pattern, "gi"));
+    for (const match of matches) {
+      const signalContent = patternDef.extractContext
+        ? extractContext(match)
+        : match[0];
+      addSignal(
+        patternDef.type,
+        signalContent,
+        patternDef.confidence,
+        patternDef.subtype
+      );
     }
   }
 
-  // Product signals
-  if (/launch|releasing|announcing|introducing/i.test(content)) {
-    signals.push({
-      type: "Product Launch",
-      content: "Recent product announcement detected",
-      source: url,
-      confidence: "medium",
-    });
-  }
-
-  // Expansion signals
-  if (/new\s+office|expanding\s+to|opening\s+in|hiring\s+in/i.test(content)) {
-    signals.push({
-      type: "Expansion",
-      content: "Geographic or office expansion",
-      source: url,
-      confidence: "medium",
-    });
-  }
-
-  // Leadership signals
-  if (/new\s+(ceo|cto|cfo|vp|head\s+of|chief)/i.test(content)) {
-    signals.push({
-      type: "Leadership Change",
-      content: "New executive hire",
-      source: url,
-      confidence: "high",
-    });
-  }
-
-  // Tech stack signals
-  const techPatterns = [
-    "kubernetes", "docker", "aws", "gcp", "azure", "react", "node",
-    "python", "golang", "rust", "typescript", "graphql", "microservices",
-    "machine learning", "ai", "llm", "gpt"
-  ];
-
-  for (const tech of techPatterns) {
-    if (contentLower.includes(tech)) {
-      signals.push({
-        type: "Tech Stack",
-        content: tech.charAt(0).toUpperCase() + tech.slice(1),
-        source: url,
-        confidence: "high",
-      });
-    }
-  }
-
-  // Hiring signals
-  if (/hiring|join\s+our\s+team|we're\s+growing|open\s+positions/i.test(content)) {
-    signals.push({
-      type: "Hiring",
-      content: "Active hiring detected",
-      source: url,
-      confidence: "high",
-    });
-  }
-
-  return signals;
+  // Sort by confidence (high first) and limit
+  return signals
+    .sort((a, b) => {
+      const order = { high: 0, medium: 1, low: 2 };
+      return order[a.confidence] - order[b.confidence];
+    })
+    .slice(0, 20); // Limit to top 20 signals
 }
 
 // Extract company info from about page
@@ -610,43 +716,311 @@ export async function researchCompany(domain: string): Promise<CompanyResearch &
   return research;
 }
 
+// ============= ENHANCED PAIN POINT INFERENCE =============
+// Comprehensive analysis based on signals, stage, and context
+
+interface PainPointRule {
+  condition: (ctx: PainPointContext) => boolean;
+  pain: string;
+  urgency: "immediate" | "near-term" | "ongoing";
+  category: "growth" | "operations" | "technology" | "people" | "market";
+}
+
+interface PainPointContext {
+  signalTypes: Set<string>;
+  signalContent: string[];
+  teamSize?: number;
+  hasFunding: boolean;
+  fundingStage?: string;
+  isHiring: boolean;
+  hiringVolume: "aggressive" | "moderate" | "light" | "none";
+  isExpanding: boolean;
+  hasNewLeadership: boolean;
+  hasProductLaunch: boolean;
+  techStack: string[];
+  industry?: string;
+}
+
+// Comprehensive pain point rules
+const PAIN_POINT_RULES: PainPointRule[] = [
+  // === FUNDING-TRIGGERED PAINS ===
+  {
+    condition: (ctx) => ctx.signalTypes.has("Funding - Series") || ctx.signalTypes.has("Funding - Round Closed"),
+    pain: "Board pressure to hit aggressive growth targets with new capital",
+    urgency: "immediate",
+    category: "growth",
+  },
+  {
+    condition: (ctx) => ctx.signalTypes.has("Funding - Seed") || ctx.signalTypes.has("Funding - Pre-Seed"),
+    pain: "Finding product-market fit before runway depletes",
+    urgency: "immediate",
+    category: "growth",
+  },
+  {
+    condition: (ctx) => ctx.hasFunding && ctx.isHiring,
+    pain: "Deploying capital efficiently while scaling team rapidly",
+    urgency: "immediate",
+    category: "operations",
+  },
+  {
+    condition: (ctx) => ctx.signalTypes.has("Funding - IPO"),
+    pain: "Meeting public market expectations and compliance requirements",
+    urgency: "immediate",
+    category: "operations",
+  },
+
+  // === HIRING-TRIGGERED PAINS ===
+  {
+    condition: (ctx) => ctx.hiringVolume === "aggressive",
+    pain: "Maintaining culture and quality bar while hiring fast",
+    urgency: "immediate",
+    category: "people",
+  },
+  {
+    condition: (ctx) => ctx.signalTypes.has("Hiring - Leadership Hire") || ctx.signalTypes.has("Hiring - Executive Hire"),
+    pain: "New executive evaluating and potentially replacing existing vendors",
+    urgency: "immediate",
+    category: "operations",
+  },
+  {
+    condition: (ctx) => ctx.signalTypes.has("Hiring - Department Growth"),
+    pain: "Building new team capabilities from scratch",
+    urgency: "near-term",
+    category: "people",
+  },
+  {
+    condition: (ctx) => ctx.isHiring && (ctx.teamSize ?? 0) > 0 && (ctx.teamSize ?? 0) < 50,
+    pain: "Every hire is critical - wrong hires set back the company months",
+    urgency: "immediate",
+    category: "people",
+  },
+  {
+    condition: (ctx) => ctx.isHiring && (ctx.teamSize ?? 0) > 100,
+    pain: "Onboarding at scale while maintaining productivity",
+    urgency: "ongoing",
+    category: "people",
+  },
+
+  // === PRODUCT-TRIGGERED PAINS ===
+  {
+    condition: (ctx) => ctx.hasProductLaunch,
+    pain: "Driving adoption and usage of new product features",
+    urgency: "immediate",
+    category: "growth",
+  },
+  {
+    condition: (ctx) => ctx.signalTypes.has("Product - GA Release"),
+    pain: "Scaling infrastructure to handle production load",
+    urgency: "immediate",
+    category: "technology",
+  },
+  {
+    condition: (ctx) => ctx.signalTypes.has("Product - Beta Phase"),
+    pain: "Converting beta users to paying customers",
+    urgency: "near-term",
+    category: "growth",
+  },
+  {
+    condition: (ctx) => ctx.signalTypes.has("Product - Integration"),
+    pain: "Managing integration complexity and partner relationships",
+    urgency: "ongoing",
+    category: "technology",
+  },
+
+  // === EXPANSION-TRIGGERED PAINS ===
+  {
+    condition: (ctx) => ctx.isExpanding,
+    pain: "Coordinating across time zones and maintaining team cohesion",
+    urgency: "ongoing",
+    category: "operations",
+  },
+  {
+    condition: (ctx) => ctx.signalTypes.has("Expansion - New Market") || ctx.signalTypes.has("Expansion - Market Expansion"),
+    pain: "Adapting product and GTM for new market requirements",
+    urgency: "immediate",
+    category: "market",
+  },
+  {
+    condition: (ctx) => ctx.signalTypes.has("Expansion - Regional Expansion"),
+    pain: "Navigating regional compliance and data residency requirements",
+    urgency: "immediate",
+    category: "operations",
+  },
+  {
+    condition: (ctx) => ctx.signalTypes.has("Expansion - Global Growth"),
+    pain: "Localizing product and support for international customers",
+    urgency: "near-term",
+    category: "market",
+  },
+
+  // === LEADERSHIP-TRIGGERED PAINS ===
+  {
+    condition: (ctx) => ctx.hasNewLeadership,
+    pain: "New leader wants to make their mark with fresh initiatives",
+    urgency: "immediate",
+    category: "operations",
+  },
+  {
+    condition: (ctx) => ctx.hasNewLeadership && ctx.hasFunding,
+    pain: "Pressure to justify investment thesis with quick wins",
+    urgency: "immediate",
+    category: "growth",
+  },
+
+  // === TECHNOLOGY-TRIGGERED PAINS ===
+  {
+    condition: (ctx) => ctx.techStack.some(t => /kubernetes|k8s/i.test(t)),
+    pain: "Managing Kubernetes complexity and cost optimization",
+    urgency: "ongoing",
+    category: "technology",
+  },
+  {
+    condition: (ctx) => ctx.techStack.some(t => /llm|ai|gpt|claude|openai/i.test(t)),
+    pain: "Controlling AI/LLM costs while maintaining quality",
+    urgency: "ongoing",
+    category: "technology",
+  },
+  {
+    condition: (ctx) => ctx.techStack.some(t => /microservices/i.test(t)),
+    pain: "Observability and debugging across distributed services",
+    urgency: "ongoing",
+    category: "technology",
+  },
+  {
+    condition: (ctx) => ctx.signalTypes.has("Compliance - Security Cert"),
+    pain: "Maintaining compliance while shipping features fast",
+    urgency: "ongoing",
+    category: "operations",
+  },
+
+  // === TRACTION-TRIGGERED PAINS ===
+  {
+    condition: (ctx) => ctx.signalTypes.has("Traction - Enterprise Clients"),
+    pain: "Meeting enterprise security, compliance, and SLA requirements",
+    urgency: "ongoing",
+    category: "operations",
+  },
+  {
+    condition: (ctx) => ctx.signalTypes.has("Traction - Growth Rate"),
+    pain: "Scaling infrastructure and team to match hypergrowth",
+    urgency: "immediate",
+    category: "operations",
+  },
+
+  // === PARTNERSHIP-TRIGGERED PAINS ===
+  {
+    condition: (ctx) => ctx.signalTypes.has("M&A - Acquisition"),
+    pain: "Integrating acquired company while maintaining momentum",
+    urgency: "immediate",
+    category: "operations",
+  },
+  {
+    condition: (ctx) => ctx.signalTypes.has("Partnership - Strategic Partner"),
+    pain: "Delivering on partnership commitments while running core business",
+    urgency: "near-term",
+    category: "market",
+  },
+
+  // === STAGE-BASED PAINS ===
+  {
+    condition: (ctx) => (ctx.teamSize ?? 0) >= 10 && (ctx.teamSize ?? 0) <= 30,
+    pain: "Transitioning from startup chaos to structured processes",
+    urgency: "ongoing",
+    category: "operations",
+  },
+  {
+    condition: (ctx) => (ctx.teamSize ?? 0) >= 50 && (ctx.teamSize ?? 0) <= 150,
+    pain: "Breaking down silos as teams specialize and grow",
+    urgency: "ongoing",
+    category: "people",
+  },
+  {
+    condition: (ctx) => (ctx.teamSize ?? 0) > 200,
+    pain: "Maintaining agility and innovation at scale",
+    urgency: "ongoing",
+    category: "operations",
+  },
+];
+
 // Infer pain points from signals
 function inferPainPoints(
   signals: CompanyResearch["signals"],
   teamInfo: CompanyResearch["teamInfo"]
 ): string[] {
-  const pains: string[] = [];
-
+  // Build context object
   const signalTypes = new Set(signals.map((s) => s.type));
+  const signalContent = signals.map((s) => s.content.toLowerCase());
+  const teamSize = teamInfo.size ? parseInt(teamInfo.size) : undefined;
 
-  if (signalTypes.has("Hiring")) {
-    pains.push("Scaling team while maintaining quality");
-  }
-  if (signalTypes.has("Funding Round") || signalTypes.has("Funding Stage")) {
-    pains.push("Pressure to show growth with new capital");
-  }
-  if (signalTypes.has("Product Launch")) {
-    pains.push("Go-to-market execution and adoption");
-  }
-  if (signalTypes.has("Expansion")) {
-    pains.push("Operational complexity across locations");
-  }
-  if (signalTypes.has("Leadership Change")) {
-    pains.push("New leader evaluating tools and processes");
-  }
+  // Detect patterns
+  const hasFunding = signals.some((s) => s.type.startsWith("Funding"));
+  const fundingStage = signals.find((s) => s.type.includes("Series"))?.content;
+  const isHiring = signals.some((s) => s.type.startsWith("Hiring"));
+  const isExpanding = signals.some((s) => s.type.startsWith("Expansion"));
+  const hasNewLeadership = signals.some((s) =>
+    s.type.includes("Leadership") || s.type.includes("Executive")
+  );
+  const hasProductLaunch = signals.some((s) => s.type.startsWith("Product"));
+  const techStack = signals
+    .filter((s) => s.type.startsWith("Tech Stack"))
+    .map((s) => s.content);
 
-  // Team size based pains
-  if (teamInfo.size) {
-    const size = parseInt(teamInfo.size);
-    if (size > 50 && size < 200) {
-      pains.push("Scaling processes that worked when smaller");
+  // Determine hiring volume
+  let hiringVolume: "aggressive" | "moderate" | "light" | "none" = "none";
+  if (isHiring) {
+    const hiringSignals = signals.filter((s) => s.type.startsWith("Hiring"));
+    if (hiringSignals.length >= 3 || signalContent.some((c) => /\d{2,}\s*(?:positions|roles|jobs)/i.test(c))) {
+      hiringVolume = "aggressive";
+    } else if (hiringSignals.length >= 2) {
+      hiringVolume = "moderate";
+    } else {
+      hiringVolume = "light";
     }
-    if (size > 200) {
-      pains.push("Enterprise-grade security and compliance needs");
+  }
+
+  const ctx: PainPointContext = {
+    signalTypes,
+    signalContent,
+    teamSize,
+    hasFunding,
+    fundingStage,
+    isHiring,
+    hiringVolume,
+    isExpanding,
+    hasNewLeadership,
+    hasProductLaunch,
+    techStack,
+  };
+
+  // Apply rules and collect pains
+  const matchedPains: { pain: string; urgency: string; category: string }[] = [];
+
+  for (const rule of PAIN_POINT_RULES) {
+    if (rule.condition(ctx)) {
+      matchedPains.push({
+        pain: rule.pain,
+        urgency: rule.urgency,
+        category: rule.category,
+      });
     }
   }
 
-  return pains;
+  // Sort by urgency (immediate first) and dedupe
+  const urgencyOrder = { immediate: 0, "near-term": 1, ongoing: 2 };
+  const sortedPains = matchedPains
+    .sort((a, b) => urgencyOrder[a.urgency as keyof typeof urgencyOrder] - urgencyOrder[b.urgency as keyof typeof urgencyOrder]);
+
+  // Return unique pains, prioritizing immediate ones
+  const seen = new Set<string>();
+  const uniquePains: string[] = [];
+  for (const p of sortedPains) {
+    if (!seen.has(p.pain)) {
+      seen.add(p.pain);
+      uniquePains.push(p.pain);
+    }
+  }
+
+  return uniquePains.slice(0, 6); // Return top 6 most relevant
 }
 
 // Quick scrape for enrichment (single page, fast) - uses 1 credit
