@@ -10,6 +10,7 @@ import {
   Sparkles,
   LogOut,
   User,
+  Bookmark,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/supabase/auth-context";
@@ -21,6 +22,7 @@ interface SidebarProps {
 
 const navItems = [
   { title: "Leads", href: "/drip", icon: Zap },
+  { title: "Saved", href: "/saved", icon: Bookmark },
   { title: "Analytics", href: "/analytics", icon: BarChart3 },
   { title: "Settings", href: "/settings", icon: Settings },
 ];

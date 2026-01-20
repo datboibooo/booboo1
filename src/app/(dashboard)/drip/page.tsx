@@ -38,8 +38,11 @@ import {
   Sparkles,
   Zap,
   Brain,
+  Globe,
+  Loader2,
 } from "lucide-react";
 import { getStoredLeads, saveLeads, updateLead, logActivity } from "@/lib/store";
+import { jobBoardLeadsToRecords, type JobBoardLead } from "@/lib/data/job-to-lead";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { KeyboardShortcutsHelp } from "@/components/ui/keyboard-shortcuts-help";
 import { cn } from "@/lib/utils";
@@ -81,6 +84,36 @@ export default function DripFeedPage() {
   // Research panel state
   const [showResearchPanel, setShowResearchPanel] = React.useState(false);
   const [showThinkingPanel, setShowThinkingPanel] = React.useState(false);
+  const [isLoadingLive, setIsLoadingLive] = React.useState(false);
+
+  // Load live job board data (no API keys needed)
+  const loadLiveData = async () => {
+    setIsLoadingLive(true);
+    try {
+      const response = await fetch("/api/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: "Companies hiring engineers",
+          limit: 15,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Search failed");
+
+      const data = await response.json();
+      if (data.leads && data.leads.length > 0) {
+        const records = jobBoardLeadsToRecords(data.leads as JobBoardLead[]);
+        setLeads(records);
+        saveLeads(records);
+        setIsDemo(false);
+      }
+    } catch (error) {
+      console.error("Failed to load live data:", error);
+    } finally {
+      setIsLoadingLive(false);
+    }
+  };
 
   const fetchLeads = React.useCallback(async () => {
     try {
@@ -460,12 +493,27 @@ export default function DripFeedPage() {
 
       {/* Demo Mode Banner */}
       {isDemo && (
-        <div className="flex items-center gap-2 border-b border-[--priority-medium]/30 bg-[--priority-medium]/10 px-6 py-2 text-sm text-[--priority-medium]">
-          <AlertCircle className="h-4 w-4" />
-          <span>
-            Demo Mode: Showing sample data. Configure API keys to enable live
-            generation.
-          </span>
+        <div className="flex items-center justify-between border-b border-[--priority-medium]/30 bg-[--priority-medium]/10 px-6 py-2 text-sm text-[--priority-medium]">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4" />
+            <span>
+              Demo Mode: Showing sample data.
+            </span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={loadLiveData}
+            disabled={isLoadingLive}
+            className="h-7 gap-1 border-[--priority-medium]/50 hover:bg-[--priority-medium]/20"
+          >
+            {isLoadingLive ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Globe className="h-3 w-3" />
+            )}
+            {isLoadingLive ? "Loading..." : "Load Live Job Board Data"}
+          </Button>
         </div>
       )}
 
