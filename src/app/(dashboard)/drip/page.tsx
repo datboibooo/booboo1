@@ -24,11 +24,18 @@ import {
   Sparkles,
   TrendingUp,
   Building2,
+  Copy,
+  Check,
+  Globe,
+  Keyboard,
 } from "lucide-react";
 import { getStoredLeads, saveLeads, updateLead, logActivity } from "@/lib/store";
 import { jobBoardLeadsToRecords, type JobBoardLead } from "@/lib/data/job-to-lead";
 import { cn } from "@/lib/utils";
 import { CompanyBrief } from "@/components/leads/company-brief";
+import { BuyerSimulation } from "@/components/simulation/buyer-simulation";
+import { KeyboardShortcutsHelp } from "@/components/ui/keyboard-shortcuts-help";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
 // Type for leads that may have verification
 type LeadWithOptionalVerification = LeadRecord | VerifiedLead;
@@ -41,6 +48,11 @@ export default function DripFeedPage() {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [showFilters, setShowFilters] = React.useState(false);
   const [activeFilter, setActiveFilter] = React.useState<string>("all");
+  const [focusedIndex, setFocusedIndex] = React.useState(0);
+  const [showSimulation, setShowSimulation] = React.useState(false);
+  const [researchDomain, setResearchDomain] = React.useState<string | undefined>();
+  const [copiedId, setCopiedId] = React.useState<string | null>(null);
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
 
   // Quick search suggestions
   const QUICK_SEARCHES = [
@@ -48,6 +60,63 @@ export default function DripFeedPage() {
     { label: "AI/ML", query: "ai ml machine learning", icon: TrendingUp },
     { label: "Fintech", query: "fintech finance", icon: Building2 },
   ];
+
+  // Copy opener handler
+  const handleCopyOpener = React.useCallback(async (lead: LeadWithOptionalVerification) => {
+    await navigator.clipboard.writeText(lead.openerShort);
+    setCopiedId(lead.id);
+    setTimeout(() => setCopiedId(null), 2000);
+  }, []);
+
+  // Research handler
+  const handleResearch = React.useCallback((domain: string) => {
+    setResearchDomain(domain);
+    setShowSimulation(true);
+  }, []);
+
+  // Get focused lead
+  const focusedLead = React.useMemo(() => {
+    const filtered = leads.filter((lead) => {
+      if (activeFilter === "saved" && lead.status !== "saved") return false;
+      if (activeFilter === "hot" && lead.score < 80) return false;
+      return true;
+    });
+    return filtered[focusedIndex] || null;
+  }, [leads, activeFilter, focusedIndex]);
+
+  // Keyboard shortcuts
+  const { showHelp, setShowHelp } = useKeyboardShortcuts({
+    onNext: () => {
+      const maxIndex = filteredLeads.length - 1;
+      setFocusedIndex((prev) => Math.min(prev + 1, maxIndex));
+    },
+    onPrevious: () => {
+      setFocusedIndex((prev) => Math.max(prev - 1, 0));
+    },
+    onOpenDetails: () => {
+      if (focusedLead) setSelectedLead(focusedLead);
+    },
+    onCloseDetails: () => {
+      setSelectedLead(null);
+      setShowSimulation(false);
+    },
+    onSave: () => {
+      if (focusedLead) handleStatusChange(focusedLead.id, "saved");
+    },
+    onSkip: () => {
+      if (focusedLead) handleStatusChange(focusedLead.id, "skip");
+    },
+    onResearch: () => {
+      if (focusedLead) handleResearch(focusedLead.domain);
+    },
+    onCopyOpener: () => {
+      if (focusedLead) handleCopyOpener(focusedLead);
+    },
+    onRefresh: () => loadData(),
+    onExport: () => handleExport(),
+    onSearch: () => searchInputRef.current?.focus(),
+    enabled: !selectedLead && !showSimulation,
+  });
 
   // Load data
   const loadData = React.useCallback(async (query?: string) => {
@@ -161,6 +230,15 @@ export default function DripFeedPage() {
             <Button
               variant="outline"
               size="sm"
+              onClick={() => setShowSimulation(true)}
+              className="h-9 gap-2"
+            >
+              <Globe className="h-4 w-4" />
+              Research
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => loadData()}
               disabled={isRefreshing}
               className="h-9 gap-2"
@@ -176,6 +254,15 @@ export default function DripFeedPage() {
               <Download className="h-4 w-4" />
               Export
             </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowHelp(true)}
+              className="h-9 w-9 p-0"
+              title="Keyboard shortcuts (?)"
+            >
+              <Keyboard className="h-4 w-4" />
+            </Button>
           </div>
         </div>
 
@@ -184,10 +271,11 @@ export default function DripFeedPage() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[--foreground-subtle]" />
             <input
+              ref={searchInputRef}
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search companies, industries, tech stack..."
+              placeholder="Search companies, industries, tech stack... (press / to focus)"
               className="w-full h-10 pl-10 pr-4 rounded-xl bg-[--background-secondary] border border-[--border] text-sm placeholder:text-[--foreground-subtle] focus:outline-none focus:border-[--teal] transition-colors"
             />
             {searchQuery && (
@@ -295,6 +383,10 @@ export default function DripFeedPage() {
                       onSelect={() => setSelectedLead(lead)}
                       onSave={() => handleStatusChange(lead.id, "saved")}
                       onSkip={() => handleStatusChange(lead.id, "skip")}
+                      onResearch={() => handleResearch(lead.domain)}
+                      onCopy={() => handleCopyOpener(lead)}
+                      isCopied={copiedId === lead.id}
+                      isFocused={focusedIndex === idx && !selectedLead}
                     />
                   </motion.div>
                 ))}
@@ -312,6 +404,31 @@ export default function DripFeedPage() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Buyer Simulation Modal */}
+      <BuyerSimulation
+        open={showSimulation}
+        onClose={() => {
+          setShowSimulation(false);
+          setResearchDomain(undefined);
+        }}
+        initialDomain={researchDomain}
+        onSearchGenerated={(queries) => {
+          setSearchQuery(queries[0] || "");
+          if (queries[0]) loadData(queries[0]);
+        }}
+      />
+
+      {/* Keyboard Shortcuts Help */}
+      <KeyboardShortcutsHelp open={showHelp} onOpenChange={setShowHelp} />
+
+      {/* Keyboard hint for first-time users */}
+      {!isLoading && leads.length > 0 && !selectedLead && !showSimulation && (
+        <div className="fixed bottom-4 right-4 flex items-center gap-2 px-3 py-2 bg-[--background-secondary] border border-[--border] rounded-lg text-xs text-[--foreground-muted] shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <Keyboard className="h-3.5 w-3.5" />
+          <span>Press <kbd className="px-1.5 py-0.5 bg-[--background] border border-[--border] rounded text-[10px] font-mono">?</kbd> for shortcuts</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -334,11 +451,19 @@ function LeadCardSimple({
   onSelect,
   onSave,
   onSkip,
+  onResearch,
+  onCopy,
+  isCopied,
+  isFocused,
 }: {
   lead: LeadWithOptionalVerification;
   onSelect: () => void;
   onSave: () => void;
   onSkip: () => void;
+  onResearch?: () => void;
+  onCopy?: () => void;
+  isCopied?: boolean;
+  isFocused?: boolean;
 }) {
   const isSaved = lead.status === "saved";
   const isHot = lead.score >= 80;
@@ -352,7 +477,8 @@ function LeadCardSimple({
     <div
       className={cn(
         "water-card rounded-2xl p-5 cursor-pointer transition-all hover:shadow-lg group relative",
-        isSaved && "border-[--purple]/40 bg-[--purple]/5"
+        isSaved && "border-[--purple]/40 bg-[--purple]/5",
+        isFocused && "ring-2 ring-[--teal] ring-offset-2 ring-offset-[--background]"
       )}
       onClick={onSelect}
     >
@@ -458,6 +584,35 @@ function LeadCardSimple({
             <Bookmark className={cn("h-3.5 w-3.5", isSaved && "fill-current")} />
             {isSaved ? "Saved" : "Save"}
           </button>
+          {onResearch && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onResearch();
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-[--background-secondary] text-[--foreground-muted] hover:bg-[--teal]/10 hover:text-[--teal] transition-all"
+              title="Research company (r)"
+            >
+              <Globe className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {onCopy && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onCopy();
+              }}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all",
+                isCopied
+                  ? "bg-green-500/10 text-green-500"
+                  : "bg-[--background-secondary] text-[--foreground-muted] hover:bg-[--accent]/10 hover:text-[--accent]"
+              )}
+              title="Copy opener (c)"
+            >
+              {isCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+            </button>
+          )}
           <button
             onClick={(e) => {
               e.stopPropagation();

@@ -76,14 +76,25 @@ interface CompanyResearch {
 
 type SimMode = "journey" | "message" | "research";
 
+// Product presets for quick simulation
+const PRODUCT_PRESETS = [
+  { id: "devtools", label: "DevTools / CI/CD", description: "CI/CD, testing, monitoring" },
+  { id: "ai-ml", label: "AI/ML Platform", description: "AI infrastructure, ML ops" },
+  { id: "sales", label: "Sales / CRM", description: "Sales automation, CRM" },
+  { id: "security", label: "Security", description: "Security, compliance" },
+  { id: "marketing", label: "Marketing", description: "Marketing automation" },
+];
+
 interface BuyerSimulationProps {
   open: boolean;
   onClose: () => void;
   onSearchGenerated?: (queries: string[]) => void;
+  initialDomain?: string;
+  initialMode?: SimMode;
 }
 
-export function BuyerSimulation({ open, onClose, onSearchGenerated }: BuyerSimulationProps) {
-  const [mode, setMode] = React.useState<SimMode>("journey");
+export function BuyerSimulation({ open, onClose, onSearchGenerated, initialDomain, initialMode }: BuyerSimulationProps) {
+  const [mode, setMode] = React.useState<SimMode>(initialMode || "journey");
   const [isLoading, setIsLoading] = React.useState(false);
 
   // Journey mode state
@@ -96,9 +107,17 @@ export function BuyerSimulation({ open, onClose, onSearchGenerated }: BuyerSimul
   const [messageResult, setMessageResult] = React.useState<MessageTestResult | null>(null);
 
   // Research mode state
-  const [researchDomain, setResearchDomain] = React.useState("");
+  const [researchDomain, setResearchDomain] = React.useState(initialDomain || "");
   const [researchResult, setResearchResult] = React.useState<CompanyResearch | null>(null);
   const [researchMode, setResearchMode] = React.useState<"quick" | "deep">("quick");
+
+  // Set initial domain when props change
+  React.useEffect(() => {
+    if (initialDomain) {
+      setResearchDomain(initialDomain);
+      setMode("research");
+    }
+  }, [initialDomain]);
   const [usageStats, setUsageStats] = React.useState<{
     creditsUsed: number;
     creditsRemaining: number;
@@ -295,6 +314,25 @@ export function BuyerSimulation({ open, onClose, onSearchGenerated }: BuyerSimul
                 <label className="block text-sm font-medium mb-2">
                   What do you sell?
                 </label>
+
+                {/* Quick Presets */}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {PRODUCT_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      onClick={() => setProductDescription(preset.description)}
+                      className={cn(
+                        "px-3 py-1.5 text-xs rounded-lg border transition-all",
+                        productDescription === preset.description
+                          ? "border-[--teal] bg-[--teal]/10 text-[--teal]"
+                          : "border-[--border] bg-[--background-secondary] text-[--foreground-muted] hover:border-[--foreground-subtle]"
+                      )}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+
                 <textarea
                   value={productDescription}
                   onChange={(e) => setProductDescription(e.target.value)}
