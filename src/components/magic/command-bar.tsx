@@ -4,48 +4,54 @@ import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import {
-  Search,
   Sparkles,
   ArrowRight,
   Loader2,
   Building2,
   TrendingUp,
-  Mail,
-  Settings,
+  Code2,
+  Briefcase,
   X,
-  ChevronDown,
   ExternalLink,
-  Check,
   Zap,
+  Users,
+  MapPin,
 } from "lucide-react";
+
+interface Lead {
+  name: string;
+  domain: string;
+  industry: string;
+  stage: string;
+  score: number;
+  totalJobs: number;
+  techStack: string[];
+  departments: Record<string, number>;
+  signals: string[];
+  hiringVelocity: "aggressive" | "moderate" | "stable";
+  topJobs?: Array<{ title: string; department: string; location: string; url: string }>;
+}
 
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
-  type?: "text" | "leads" | "action" | "thinking";
-  data?: any;
+  type?: "text" | "leads" | "action";
+  data?: { leads?: Lead[] };
   timestamp: Date;
 }
 
 interface MagicCommandBarProps {
-  onLeadSelect?: (lead: any) => void;
+  onLeadSelect?: (lead: Lead) => void;
   className?: string;
 }
 
-// Suggested queries for empty state
+// Suggested queries - these work with real data
 const SUGGESTIONS = [
-  { icon: Building2, text: "Companies hiring engineers with Series A" },
-  { icon: TrendingUp, text: "Show high-intent leads this week" },
-  { icon: Mail, text: "Draft outreach for my top leads" },
-  { icon: Settings, text: "Configure AI providers" },
-];
-
-// Quick actions
-const QUICK_ACTIONS = [
-  { key: "search", label: "Search leads", shortcut: "/" },
-  { key: "refresh", label: "Refresh feed", shortcut: "R" },
-  { key: "export", label: "Export CSV", shortcut: "E" },
+  { icon: Code2, text: "Companies hiring React engineers" },
+  { icon: TrendingUp, text: "AI startups scaling their team" },
+  { icon: Building2, text: "Series A companies hiring" },
+  { icon: Briefcase, text: "Fintech with aggressive hiring" },
 ];
 
 export function MagicCommandBar({ onLeadSelect, className }: MagicCommandBarProps) {
@@ -57,19 +63,16 @@ export function MagicCommandBar({ onLeadSelect, className }: MagicCommandBarProp
   const inputRef = React.useRef<HTMLInputElement>(null);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
 
-  // Auto-focus when expanded
   React.useEffect(() => {
     if (isExpanded && inputRef.current) {
       inputRef.current.focus();
     }
   }, [isExpanded]);
 
-  // Scroll to bottom on new messages
   React.useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Keyboard shortcut to open
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -96,105 +99,103 @@ export function MagicCommandBar({ onLeadSelect, className }: MagicCommandBarProp
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    const query = input.trim();
     setInput("");
     setIsThinking(true);
 
-    // Simulate AI processing with thinking steps
-    await processQuery(userMessage.content);
+    await processQuery(query);
   };
 
   const processQuery = async (query: string) => {
     const lowerQuery = query.toLowerCase();
 
-    // Settings/config queries
+    // Settings/config queries - redirect
     if (lowerQuery.includes("config") || lowerQuery.includes("setting") || lowerQuery.includes("api key")) {
       setThinkingStep("Opening settings...");
-      await sleep(500);
-      addAssistantMessage("Opening AI configuration...", "action", { action: "open_settings" });
+      await sleep(300);
+      window.location.href = "/settings";
       setIsThinking(false);
       return;
     }
 
-    // Search/find queries
-    if (lowerQuery.includes("find") || lowerQuery.includes("search") || lowerQuery.includes("companies") || lowerQuery.includes("hiring")) {
-      setThinkingStep("Understanding your query...");
-      await sleep(600);
-      setThinkingStep("Searching across data sources...");
-      await sleep(800);
-      setThinkingStep("Analyzing hiring signals...");
-      await sleep(700);
-      setThinkingStep("Ranking by intent score...");
-      await sleep(500);
-
-      // Mock results - in production, call /api/think
-      const mockLeads = [
-        { name: "Acme Corp", domain: "acme.com", score: 92, signal: "Hiring 5 engineers", funding: "Series B" },
-        { name: "TechStart", domain: "techstart.io", score: 87, signal: "New CTO hired", funding: "Series A" },
-        { name: "DataFlow", domain: "dataflow.ai", score: 84, signal: "Expanding to EU", funding: "Seed" },
-      ];
-
-      addAssistantMessage(
-        `Found ${mockLeads.length} high-intent companies matching your criteria:`,
-        "leads",
-        { leads: mockLeads }
-      );
-      setIsThinking(false);
+    // Search queries - call real API
+    if (
+      lowerQuery.includes("find") ||
+      lowerQuery.includes("search") ||
+      lowerQuery.includes("companies") ||
+      lowerQuery.includes("hiring") ||
+      lowerQuery.includes("startups") ||
+      lowerQuery.includes("series") ||
+      lowerQuery.includes("engineer") ||
+      lowerQuery.includes("team") ||
+      lowerQuery.includes("scaling") ||
+      lowerQuery.includes("fintech") ||
+      lowerQuery.includes("ai ") ||
+      lowerQuery.includes("devtool")
+    ) {
+      await searchRealData(query);
       return;
     }
 
-    // Outreach queries
-    if (lowerQuery.includes("outreach") || lowerQuery.includes("email") || lowerQuery.includes("draft")) {
-      setThinkingStep("Analyzing lead context...");
-      await sleep(600);
-      setThinkingStep("Crafting personalized message...");
-      await sleep(800);
-
-      addAssistantMessage(
-        "Here's a draft outreach based on their hiring signals:\n\n" +
-        "**Subject:** Quick question about your engineering growth\n\n" +
-        "Hi [Name],\n\n" +
-        "Noticed you're scaling the engineering team - congrats on the momentum. " +
-        "We've helped similar companies streamline their hiring pipeline...\n\n" +
-        "*[Click to customize and send]*",
-        "text"
-      );
-      setIsThinking(false);
-      return;
-    }
-
-    // Show leads/dashboard queries
-    if (lowerQuery.includes("show") || lowerQuery.includes("leads") || lowerQuery.includes("dashboard")) {
-      setThinkingStep("Fetching your leads...");
-      await sleep(500);
-
-      addAssistantMessage(
-        "Here's your lead overview:\n\n" +
-        "**This Week:** 24 new leads\n" +
-        "**High Intent:** 8 companies\n" +
-        "**Saved:** 12 leads\n\n" +
-        "Top signal: *Hiring activity up 40%*",
-        "text"
-      );
-      setIsThinking(false);
-      return;
-    }
-
-    // Default response
-    setThinkingStep("Processing...");
-    await sleep(800);
-    addAssistantMessage(
-      "I can help you with:\n\n" +
-      "- **Find leads:** \"Companies hiring React devs with Series A\"\n" +
-      "- **Draft outreach:** \"Write email for Acme Corp\"\n" +
-      "- **Analyze:** \"Show my best leads this week\"\n" +
-      "- **Configure:** \"Set up AI providers\"\n\n" +
-      "What would you like to do?",
-      "text"
-    );
-    setIsThinking(false);
+    // Default - also search
+    await searchRealData(query);
   };
 
-  const addAssistantMessage = (content: string, type: Message["type"] = "text", data?: any) => {
+  const searchRealData = async (query: string) => {
+    try {
+      setThinkingStep("Parsing your query...");
+      await sleep(400);
+
+      setThinkingStep("Searching job boards...");
+
+      const response = await fetch("/api/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, limit: 8 }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Search failed");
+      }
+
+      setThinkingStep("Analyzing hiring signals...");
+      await sleep(300);
+
+      const data = await response.json();
+
+      if (data.leads && data.leads.length > 0) {
+        setThinkingStep("Ranking by intent...");
+        await sleep(200);
+
+        const totalJobs = data.leads.reduce((sum: number, l: Lead) => sum + l.totalJobs, 0);
+        const topSignals = data.leads.flatMap((l: Lead) => l.signals).slice(0, 3);
+
+        addAssistantMessage(
+          `Found **${data.leads.length} companies** with **${totalJobs} open roles** matching "${query}":`,
+          "leads",
+          { leads: data.leads }
+        );
+      } else {
+        addAssistantMessage(
+          "No companies found matching that criteria. Try:\n\n" +
+          "• \"Companies hiring React engineers\"\n" +
+          "• \"AI startups scaling their team\"\n" +
+          "• \"Series A fintech hiring\"",
+          "text"
+        );
+      }
+    } catch (error) {
+      console.error("Search error:", error);
+      addAssistantMessage(
+        "Search failed. Please try again.",
+        "text"
+      );
+    } finally {
+      setIsThinking(false);
+    }
+  };
+
+  const addAssistantMessage = (content: string, type: Message["type"] = "text", data?: Message["data"]) => {
     setMessages((prev) => [
       ...prev,
       {
@@ -215,9 +216,21 @@ export function MagicCommandBar({ onLeadSelect, className }: MagicCommandBarProp
     inputRef.current?.focus();
   };
 
+  const velocityColors = {
+    aggressive: "text-[--score-excellent]",
+    moderate: "text-[--score-good]",
+    stable: "text-[--foreground-muted]",
+  };
+
+  const velocityLabels = {
+    aggressive: "🔥 Aggressive",
+    moderate: "📈 Growing",
+    stable: "➡️ Stable",
+  };
+
   return (
     <>
-      {/* Collapsed state - minimal bar */}
+      {/* Collapsed state */}
       <AnimatePresence>
         {!isExpanded && (
           <motion.button
@@ -238,7 +251,7 @@ export function MagicCommandBar({ onLeadSelect, className }: MagicCommandBarProp
           >
             <Sparkles className="h-4 w-4 text-[--accent]" />
             <span className="text-sm text-[--foreground-muted] group-hover:text-[--foreground]">
-              Ask anything...
+              Find companies hiring...
             </span>
             <kbd className="ml-2 px-1.5 py-0.5 text-[10px] rounded bg-[--background-tertiary] text-[--foreground-subtle] border border-[--border]">
               ⌘K
@@ -247,11 +260,10 @@ export function MagicCommandBar({ onLeadSelect, className }: MagicCommandBarProp
         )}
       </AnimatePresence>
 
-      {/* Expanded state - full command interface */}
+      {/* Expanded state */}
       <AnimatePresence>
         {isExpanded && (
           <>
-            {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -260,7 +272,6 @@ export function MagicCommandBar({ onLeadSelect, className }: MagicCommandBarProp
               className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
             />
 
-            {/* Command panel */}
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -275,9 +286,9 @@ export function MagicCommandBar({ onLeadSelect, className }: MagicCommandBarProp
                 "overflow-hidden"
               )}
             >
-              {/* Messages area */}
+              {/* Messages */}
               {messages.length > 0 && (
-                <div className="max-h-[400px] overflow-y-auto p-4 space-y-4">
+                <div className="max-h-[450px] overflow-y-auto p-4 space-y-4">
                   {messages.map((message) => (
                     <div
                       key={message.id}
@@ -288,49 +299,138 @@ export function MagicCommandBar({ onLeadSelect, className }: MagicCommandBarProp
                     >
                       <div
                         className={cn(
-                          "max-w-[85%] rounded-2xl px-4 py-2.5",
+                          "max-w-[90%] rounded-2xl px-4 py-2.5",
                           message.role === "user"
                             ? "bg-[--accent] text-white"
                             : "bg-[--background-secondary]"
                         )}
                       >
                         {message.type === "leads" && message.data?.leads ? (
-                          <div className="space-y-2">
-                            <p className="text-sm mb-3">{message.content}</p>
-                            {message.data.leads.map((lead: any, idx: number) => (
-                              <button
-                                key={idx}
-                                onClick={() => onLeadSelect?.(lead)}
-                                className="w-full text-left p-3 rounded-xl bg-[--background]/50 hover:bg-[--background] transition-colors group"
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div>
-                                    <div className="font-medium text-sm flex items-center gap-2">
-                                      {lead.name}
-                                      <span className="text-xs text-[--foreground-muted]">
-                                        {lead.domain}
-                                      </span>
+                          <div className="space-y-3">
+                            <p className="text-sm">
+                              {message.content.split("**").map((part, i) =>
+                                i % 2 === 1 ? <strong key={i}>{part}</strong> : part
+                              )}
+                            </p>
+                            <div className="space-y-2">
+                              {message.data.leads.map((lead, idx) => (
+                                <div
+                                  key={idx}
+                                  className="p-3 rounded-xl bg-[--background]/60 hover:bg-[--background] transition-colors"
+                                >
+                                  {/* Header */}
+                                  <div className="flex items-start justify-between mb-2">
+                                    <div>
+                                      <div className="font-semibold text-sm flex items-center gap-2">
+                                        {lead.name}
+                                        <a
+                                          href={`https://${lead.domain}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-[--foreground-muted] hover:text-[--accent]"
+                                        >
+                                          <ExternalLink className="h-3 w-3" />
+                                        </a>
+                                      </div>
+                                      <div className="text-xs text-[--foreground-muted] flex items-center gap-2">
+                                        <span>{lead.industry}</span>
+                                        <span>•</span>
+                                        <span>{lead.stage}</span>
+                                      </div>
                                     </div>
-                                    <div className="text-xs text-[--foreground-muted] mt-0.5">
-                                      {lead.signal} • {lead.funding}
+                                    <div className="text-right">
+                                      <div className={cn(
+                                        "text-lg font-bold",
+                                        lead.score >= 85 ? "text-[--score-excellent]" :
+                                        lead.score >= 70 ? "text-[--score-good]" : "text-[--score-average]"
+                                      )}>
+                                        {lead.score}
+                                      </div>
+                                      <div className={cn("text-[10px]", velocityColors[lead.hiringVelocity])}>
+                                        {velocityLabels[lead.hiringVelocity]}
+                                      </div>
                                     </div>
                                   </div>
-                                  <div className="flex items-center gap-2">
-                                    <span className={cn(
-                                      "text-sm font-semibold",
-                                      lead.score >= 90 ? "text-[--score-excellent]" :
-                                      lead.score >= 70 ? "text-[--score-good]" : "text-[--score-average]"
-                                    )}>
-                                      {lead.score}
+
+                                  {/* Signals */}
+                                  {lead.signals.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mb-2">
+                                      {lead.signals.slice(0, 2).map((signal, i) => (
+                                        <span
+                                          key={i}
+                                          className="px-2 py-0.5 text-[10px] rounded-full bg-[--accent]/20 text-[--accent]"
+                                        >
+                                          {signal}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {/* Tech Stack */}
+                                  {lead.techStack.length > 0 && (
+                                    <div className="flex items-center gap-1 mb-2">
+                                      <Code2 className="h-3 w-3 text-[--foreground-subtle]" />
+                                      <div className="flex flex-wrap gap-1">
+                                        {lead.techStack.slice(0, 6).map((tech, i) => (
+                                          <span
+                                            key={i}
+                                            className="px-1.5 py-0.5 text-[10px] rounded bg-[--background-tertiary] text-[--foreground-muted]"
+                                          >
+                                            {tech}
+                                          </span>
+                                        ))}
+                                        {lead.techStack.length > 6 && (
+                                          <span className="text-[10px] text-[--foreground-subtle]">
+                                            +{lead.techStack.length - 6} more
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Stats */}
+                                  <div className="flex items-center gap-4 text-[10px] text-[--foreground-muted]">
+                                    <span className="flex items-center gap-1">
+                                      <Briefcase className="h-3 w-3" />
+                                      {lead.totalJobs} open roles
                                     </span>
-                                    <ArrowRight className="h-4 w-4 text-[--foreground-subtle] opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    {lead.departments.Engineering && (
+                                      <span className="flex items-center gap-1">
+                                        <Users className="h-3 w-3" />
+                                        {lead.departments.Engineering} eng
+                                      </span>
+                                    )}
                                   </div>
+
+                                  {/* Top Jobs Preview */}
+                                  {lead.topJobs && lead.topJobs.length > 0 && (
+                                    <div className="mt-2 pt-2 border-t border-[--border]/50">
+                                      <div className="text-[10px] text-[--foreground-subtle] mb-1">Featured roles:</div>
+                                      <div className="space-y-1">
+                                        {lead.topJobs.slice(0, 2).map((job, i) => (
+                                          <a
+                                            key={i}
+                                            href={job.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center justify-between text-[11px] hover:text-[--accent] transition-colors"
+                                          >
+                                            <span className="truncate">{job.title}</span>
+                                            <span className="text-[--foreground-subtle] flex items-center gap-1 shrink-0">
+                                              <MapPin className="h-2.5 w-2.5" />
+                                              {job.location.length > 20 ? job.location.slice(0, 20) + "..." : job.location}
+                                            </span>
+                                          </a>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
-                              </button>
-                            ))}
+                              ))}
+                            </div>
                           </div>
                         ) : (
-                          <div className="text-sm whitespace-pre-wrap prose prose-sm prose-invert max-w-none">
+                          <div className="text-sm whitespace-pre-wrap">
                             {message.content.split("**").map((part, i) =>
                               i % 2 === 1 ? <strong key={i}>{part}</strong> : part
                             )}
@@ -340,7 +440,6 @@ export function MagicCommandBar({ onLeadSelect, className }: MagicCommandBarProp
                     </div>
                   ))}
 
-                  {/* Thinking indicator */}
                   {isThinking && (
                     <div className="flex justify-start">
                       <div className="bg-[--background-secondary] rounded-2xl px-4 py-2.5">
@@ -356,10 +455,12 @@ export function MagicCommandBar({ onLeadSelect, className }: MagicCommandBarProp
                 </div>
               )}
 
-              {/* Suggestions (empty state) */}
+              {/* Suggestions */}
               {messages.length === 0 && (
                 <div className="p-4 pb-2">
-                  <p className="text-xs text-[--foreground-subtle] mb-3">Try asking:</p>
+                  <p className="text-xs text-[--foreground-subtle] mb-3">
+                    Search real job boards instantly. Try:
+                  </p>
                   <div className="grid grid-cols-2 gap-2">
                     {SUGGESTIONS.map((suggestion, idx) => (
                       <button
@@ -374,10 +475,13 @@ export function MagicCommandBar({ onLeadSelect, className }: MagicCommandBarProp
                       </button>
                     ))}
                   </div>
+                  <p className="text-[10px] text-[--foreground-subtle] mt-3 text-center">
+                    Live data from Greenhouse & Lever • No API keys needed
+                  </p>
                 </div>
               )}
 
-              {/* Input area */}
+              {/* Input */}
               <form onSubmit={handleSubmit} className="border-t border-[--border]">
                 <div className="flex items-center gap-3 p-3">
                   <Sparkles className="h-5 w-5 text-[--accent] shrink-0" />
@@ -386,7 +490,7 @@ export function MagicCommandBar({ onLeadSelect, className }: MagicCommandBarProp
                     type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    placeholder="Ask anything about your leads..."
+                    placeholder="Find companies hiring..."
                     disabled={isThinking}
                     className="flex-1 bg-transparent text-sm outline-none placeholder:text-[--foreground-subtle]"
                   />
