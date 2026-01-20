@@ -99,9 +99,30 @@ export function BuyerSimulation({ open, onClose, onSearchGenerated }: BuyerSimul
   const [researchDomain, setResearchDomain] = React.useState("");
   const [researchResult, setResearchResult] = React.useState<CompanyResearch | null>(null);
   const [researchMode, setResearchMode] = React.useState<"quick" | "deep">("quick");
+  const [usageStats, setUsageStats] = React.useState<{
+    creditsUsed: number;
+    creditsRemaining: number;
+    percentUsed: number;
+    isNearLimit: boolean;
+  } | null>(null);
+  const [usageWarning, setUsageWarning] = React.useState<string | null>(null);
 
   // Copy state
   const [copiedIndex, setCopiedIndex] = React.useState<number | null>(null);
+
+  // Fetch usage stats on mount
+  React.useEffect(() => {
+    if (open && mode === "research") {
+      fetch("/api/enrich")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.usage) {
+            setUsageStats(data.usage);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [open, mode]);
 
   const handleSimulateBuyerJourney = async () => {
     if (!productDescription.trim()) return;
@@ -160,6 +181,7 @@ export function BuyerSimulation({ open, onClose, onSearchGenerated }: BuyerSimul
 
     setIsLoading(true);
     setResearchResult(null);
+    setUsageWarning(null);
 
     try {
       const response = await fetch("/api/enrich", {
@@ -175,6 +197,14 @@ export function BuyerSimulation({ open, onClose, onSearchGenerated }: BuyerSimul
         const data = await response.json();
         if (data.success) {
           setResearchResult(data.data);
+        }
+        // Update usage stats
+        if (data.usage) {
+          setUsageStats(data.usage);
+        }
+        // Show warning if present
+        if (data.warning) {
+          setUsageWarning(data.warning);
         }
       }
     } catch (error) {
@@ -482,6 +512,47 @@ export function BuyerSimulation({ open, onClose, onSearchGenerated }: BuyerSimul
                 <p className="mt-2 text-xs text-[--foreground-subtle] text-center">
                   Uses Firecrawl to extract signals from company website
                 </p>
+
+                {/* Credit Usage Indicator */}
+                {usageStats && (
+                  <div className={cn(
+                    "mt-3 p-3 rounded-lg border",
+                    usageStats.isNearLimit
+                      ? "bg-[--coral]/5 border-[--coral]/20"
+                      : "bg-[--background-secondary] border-[--border]"
+                  )}>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className={usageStats.isNearLimit ? "text-[--coral] font-medium" : "text-[--foreground-muted]"}>
+                        Free tier: {usageStats.creditsUsed}/500 credits used
+                      </span>
+                      <span className="text-[--foreground-subtle]">
+                        {researchMode === "quick" ? "1 credit" : "4 credits"} per search
+                      </span>
+                    </div>
+                    <div className="mt-2 h-1.5 bg-[--background] rounded-full overflow-hidden">
+                      <div
+                        className={cn(
+                          "h-full rounded-full transition-all",
+                          usageStats.percentUsed > 80 ? "bg-[--coral]" :
+                          usageStats.percentUsed > 50 ? "bg-[--coral]/60" : "bg-[--teal]"
+                        )}
+                        style={{ width: `${usageStats.percentUsed}%` }}
+                      />
+                    </div>
+                    {usageStats.isNearLimit && (
+                      <p className="mt-2 text-xs text-[--coral]">
+                        Approaching monthly limit. {usageStats.creditsRemaining} credits remaining.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Usage Warning */}
+                {usageWarning && (
+                  <div className="mt-2 p-2 rounded-lg bg-[--coral]/10 text-[--coral] text-xs text-center">
+                    {usageWarning}
+                  </div>
+                )}
               </div>
 
               {/* Research Results */}

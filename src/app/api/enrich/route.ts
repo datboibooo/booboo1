@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { researchCompany, quickEnrich, type CompanyResearch } from "@/lib/firecrawl";
+import { researchCompany, quickEnrich, getUsageStats, type CompanyResearch } from "@/lib/firecrawl";
 
 export interface EnrichRequest {
   domain: string;
   mode?: "quick" | "deep"; // quick = homepage only, deep = multiple pages
+}
+
+export interface UsageStats {
+  creditsUsed: number;
+  creditsRemaining: number;
+  percentUsed: number;
+  isNearLimit: boolean;
 }
 
 export interface EnrichResponse {
@@ -15,6 +22,8 @@ export interface EnrichResponse {
   };
   error?: string;
   cached?: boolean;
+  usage?: UsageStats;
+  warning?: string;
 }
 
 // Simple in-memory cache (in production, use Redis)
@@ -55,14 +64,36 @@ export async function POST(request: NextRequest) {
     // Perform enrichment
     if (mode === "quick") {
       const data = await quickEnrich(domain);
-      return NextResponse.json({ success: true, data });
+      const usage = await getUsageStats();
+      return NextResponse.json({
+        success: true,
+        data,
+        usage: {
+          creditsUsed: usage.creditsUsed,
+          creditsRemaining: usage.creditsRemaining,
+          percentUsed: usage.percentUsed,
+          isNearLimit: usage.isNearLimit,
+        },
+        warning: data.warning,
+      });
     } else {
       const data = await researchCompany(domain);
+      const usage = await getUsageStats();
 
       // Cache the result
       cache.set(domain, { data, timestamp: Date.now() });
 
-      return NextResponse.json({ success: true, data });
+      return NextResponse.json({
+        success: true,
+        data,
+        usage: {
+          creditsUsed: usage.creditsUsed,
+          creditsRemaining: usage.creditsRemaining,
+          percentUsed: usage.percentUsed,
+          isNearLimit: usage.isNearLimit,
+        },
+        warning: data.usageWarning,
+      });
     }
   } catch (error) {
     console.error("Enrichment error:", error);
@@ -78,11 +109,18 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const domain = searchParams.get("domain");
 
+  // If no domain, return usage stats
   if (!domain) {
-    return NextResponse.json(
-      { success: false, error: "domain query param is required" },
-      { status: 400 }
-    );
+    const usage = await getUsageStats();
+    return NextResponse.json({
+      success: true,
+      usage: {
+        creditsUsed: usage.creditsUsed,
+        creditsRemaining: usage.creditsRemaining,
+        percentUsed: usage.percentUsed,
+        isNearLimit: usage.isNearLimit,
+      },
+    });
   }
 
   const cleanDomain = domain
@@ -93,14 +131,31 @@ export async function GET(request: NextRequest) {
   // Check cache first
   const cached = cache.get(cleanDomain);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    const usage = await getUsageStats();
     return NextResponse.json({
       success: true,
       data: cached.data,
       cached: true,
+      usage: {
+        creditsUsed: usage.creditsUsed,
+        creditsRemaining: usage.creditsRemaining,
+        percentUsed: usage.percentUsed,
+        isNearLimit: usage.isNearLimit,
+      },
     });
   }
 
   // Quick enrich
   const data = await quickEnrich(cleanDomain);
-  return NextResponse.json({ success: true, data });
+  const usage = await getUsageStats();
+  return NextResponse.json({
+    success: true,
+    data,
+    usage: {
+      creditsUsed: usage.creditsUsed,
+      creditsRemaining: usage.creditsRemaining,
+      percentUsed: usage.percentUsed,
+      isNearLimit: usage.isNearLimit,
+    },
+  });
 }
