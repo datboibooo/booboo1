@@ -20,6 +20,11 @@ interface UseKeyboardShortcutsOptions {
   onCloseDetails?: () => void;
   onSelectAll?: () => void;
   onDeselectAll?: () => void;
+  onResearch?: () => void;
+  onCopyOpener?: () => void;
+  onRefresh?: () => void;
+  onExport?: () => void;
+  onSearch?: () => void;
   enabled?: boolean;
 }
 
@@ -33,6 +38,11 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions = {}) 
     onCloseDetails,
     onSelectAll,
     onDeselectAll,
+    onResearch,
+    onCopyOpener,
+    onRefresh,
+    onExport,
+    onSearch,
     enabled = true,
   } = options;
 
@@ -50,6 +60,13 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions = {}) 
     // Actions
     { key: "s", description: "Save lead", action: () => onSave?.(), scope: "leads" },
     { key: "x", description: "Skip lead", action: () => onSkip?.(), scope: "leads" },
+    { key: "r", description: "Research company", action: () => onResearch?.(), scope: "leads" },
+    { key: "c", description: "Copy opener", action: () => onCopyOpener?.(), scope: "leads" },
+
+    // Quick actions
+    { key: "r", description: "Refresh leads", action: () => onRefresh?.(), scope: "global", requiresModifier: true },
+    { key: "e", description: "Export leads", action: () => onExport?.(), scope: "global", requiresModifier: true },
+    { key: "/", description: "Focus search", action: () => onSearch?.(), scope: "global" },
 
     // Selection
     { key: "a", description: "Select all", action: () => onSelectAll?.(), scope: "leads", requiresModifier: true },
@@ -64,7 +81,7 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions = {}) 
 
     // Help
     { key: "?", description: "Show shortcuts help", action: () => setShowHelp(true), scope: "global" },
-  ], [onNext, onPrevious, onOpenDetails, onCloseDetails, onSave, onSkip, onSelectAll, onDeselectAll, router]);
+  ], [onNext, onPrevious, onOpenDetails, onCloseDetails, onSave, onSkip, onSelectAll, onDeselectAll, onResearch, onCopyOpener, onRefresh, onExport, onSearch, router]);
 
   React.useEffect(() => {
     if (!enabled) return;
@@ -147,13 +164,23 @@ export const SHORTCUT_GROUPS = {
       { key: "k", description: "Previous lead" },
       { key: "Enter", description: "Open lead details" },
       { key: "Escape", description: "Close modal/details" },
+      { key: "/", description: "Focus search" },
     ],
   },
   actions: {
-    label: "Actions",
+    label: "Lead Actions",
     shortcuts: [
       { key: "s", description: "Save current lead" },
       { key: "x", description: "Skip current lead" },
+      { key: "r", description: "Research company" },
+      { key: "c", description: "Copy opener" },
+    ],
+  },
+  quickActions: {
+    label: "Quick Actions",
+    shortcuts: [
+      { key: "Cmd+r", description: "Refresh leads" },
+      { key: "Cmd+e", description: "Export leads" },
       { key: "Cmd+a", description: "Select all leads" },
       { key: "Cmd+d", description: "Deselect all" },
     ],
