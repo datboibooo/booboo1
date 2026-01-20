@@ -16,7 +16,11 @@ import {
   Zap,
   Users,
   MapPin,
+  Bookmark,
+  BookmarkCheck,
+  Download,
 } from "lucide-react";
+import { saveLead, isLeadSaved, downloadCSV, type SavedLead } from "@/lib/storage/leads";
 
 interface Lead {
   name: string;
@@ -60,8 +64,43 @@ export function MagicCommandBar({ onLeadSelect, className }: MagicCommandBarProp
   const [messages, setMessages] = React.useState<Message[]>([]);
   const [isThinking, setIsThinking] = React.useState(false);
   const [thinkingStep, setThinkingStep] = React.useState("");
+  const [savedDomains, setSavedDomains] = React.useState<Set<string>>(new Set());
   const inputRef = React.useRef<HTMLInputElement>(null);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
+
+  // Track saved state
+  React.useEffect(() => {
+    const updateSavedDomains = () => {
+      const leads = messages
+        .filter((m) => m.type === "leads" && m.data?.leads)
+        .flatMap((m) => m.data!.leads!);
+      const saved = new Set(leads.filter((l) => isLeadSaved(l.domain)).map((l) => l.domain));
+      setSavedDomains(saved);
+    };
+    updateSavedDomains();
+    window.addEventListener("leads-updated", updateSavedDomains);
+    return () => window.removeEventListener("leads-updated", updateSavedDomains);
+  }, [messages]);
+
+  const handleSaveLead = (lead: Lead) => {
+    saveLead(lead);
+    setSavedDomains((prev) => new Set([...prev, lead.domain]));
+  };
+
+  const handleExportResults = () => {
+    const leads = messages
+      .filter((m) => m.type === "leads" && m.data?.leads)
+      .flatMap((m) => m.data!.leads!)
+      .map((lead) => ({
+        ...lead,
+        id: `${lead.domain}-export`,
+        savedAt: new Date().toISOString(),
+      })) as SavedLead[];
+
+    if (leads.length > 0) {
+      downloadCSV(leads, "search-results");
+    }
+  };
 
   React.useEffect(() => {
     if (isExpanded && inputRef.current) {
@@ -307,11 +346,20 @@ export function MagicCommandBar({ onLeadSelect, className }: MagicCommandBarProp
                       >
                         {message.type === "leads" && message.data?.leads ? (
                           <div className="space-y-3">
-                            <p className="text-sm">
-                              {message.content.split("**").map((part, i) =>
-                                i % 2 === 1 ? <strong key={i}>{part}</strong> : part
-                              )}
-                            </p>
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm">
+                                {message.content.split("**").map((part, i) =>
+                                  i % 2 === 1 ? <strong key={i}>{part}</strong> : part
+                                )}
+                              </p>
+                              <button
+                                onClick={handleExportResults}
+                                className="flex items-center gap-1.5 px-2 py-1 text-[10px] rounded-lg bg-[--background]/40 hover:bg-[--background]/60 text-[--foreground-muted] hover:text-[--foreground] transition-colors"
+                              >
+                                <Download className="h-3 w-3" />
+                                Export CSV
+                              </button>
+                            </div>
                             <div className="space-y-2">
                               {message.data.leads.map((lead, idx) => (
                                 <div
@@ -331,6 +379,22 @@ export function MagicCommandBar({ onLeadSelect, className }: MagicCommandBarProp
                                         >
                                           <ExternalLink className="h-3 w-3" />
                                         </a>
+                                        <button
+                                          onClick={() => handleSaveLead(lead)}
+                                          className={cn(
+                                            "p-1 rounded transition-colors",
+                                            savedDomains.has(lead.domain)
+                                              ? "text-[--accent]"
+                                              : "text-[--foreground-subtle] hover:text-[--accent]"
+                                          )}
+                                          title={savedDomains.has(lead.domain) ? "Saved" : "Save lead"}
+                                        >
+                                          {savedDomains.has(lead.domain) ? (
+                                            <BookmarkCheck className="h-3.5 w-3.5" />
+                                          ) : (
+                                            <Bookmark className="h-3.5 w-3.5" />
+                                          )}
+                                        </button>
                                       </div>
                                       <div className="text-xs text-[--foreground-muted] flex items-center gap-2">
                                         <span>{lead.industry}</span>

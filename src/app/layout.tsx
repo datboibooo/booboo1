@@ -3,8 +3,8 @@ import "./globals.css";
 import { ClientProviders } from "@/components/providers/client-providers";
 
 export const metadata: Metadata = {
-  title: "LeadDrip",
-  description: "AI-powered lead intelligence platform",
+  title: "drip drip",
+  description: "Find companies ready to buy. Real-time hiring signals.",
 };
 
 export default function RootLayout({

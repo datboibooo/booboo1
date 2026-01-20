@@ -7,9 +7,10 @@ import {
   Zap,
   Settings,
   BarChart3,
-  Sparkles,
+  Droplets,
   LogOut,
   User,
+  Bookmark,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/supabase/auth-context";
@@ -21,6 +22,7 @@ interface SidebarProps {
 
 const navItems = [
   { title: "Leads", href: "/drip", icon: Zap },
+  { title: "Saved", href: "/saved", icon: Bookmark },
   { title: "Analytics", href: "/analytics", icon: BarChart3 },
   { title: "Settings", href: "/settings", icon: Settings },
 ];
@@ -37,9 +39,10 @@ export function Sidebar({ className }: SidebarProps) {
       {/* Logo */}
       <Link
         href="/drip"
-        className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[--accent] to-purple-600 text-white mb-6"
+        className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[--teal] to-[--purple] text-white mb-6 shadow-lg shadow-[--teal]/20 hover:scale-105 transition-transform"
+        title="drip drip"
       >
-        <Sparkles className="h-5 w-5" />
+        <Droplets className="h-5 w-5" />
       </Link>
 
       {/* Navigation */}
@@ -78,7 +81,7 @@ export function Sidebar({ className }: SidebarProps) {
               <LogOut className="h-5 w-5" />
             </button>
             <div
-              className="h-10 w-10 rounded-xl bg-gradient-to-br from-[--accent] to-purple-600 flex items-center justify-center text-white text-sm font-medium"
+              className="h-10 w-10 rounded-xl bg-gradient-to-br from-[--teal] to-[--purple] flex items-center justify-center text-white text-sm font-medium"
               title={user.email || "User"}
             >
               {initials}
