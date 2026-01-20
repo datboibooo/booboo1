@@ -25,9 +25,11 @@ import {
   Download,
   Trash2,
   AlertTriangle,
+  Brain,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getUserConfig, saveUserConfig, getStoredLeads, getWatchLists, resetAllData } from "@/lib/store";
+import { AISettings } from "@/components/settings/ai-settings";
 
 const TIMEZONES = [
   "America/New_York",
@@ -165,10 +167,15 @@ export default function SettingsPage() {
       />
 
       <ScrollArea className="flex-1">
-        <div className="p-6 max-w-3xl">
+        <div className="p-6 max-w-4xl">
+          {/* AI Configuration - Primary Section */}
+          <section className="mb-8">
+            <AISettings />
+          </section>
+
           {/* Provider Status */}
           <section className="mb-8">
-            <h2 className="text-lg font-semibold mb-4">Provider Status</h2>
+            <h2 className="text-lg font-semibold mb-4">Integration Status</h2>
             <div className="grid gap-4 md:grid-cols-3">
               <Card>
                 <CardHeader className="pb-2">
