@@ -22,6 +22,7 @@ import {
   UserPlus,
   Globe,
   Flame,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
