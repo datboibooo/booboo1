@@ -960,3 +960,358 @@ kbd {
 .bubble-dot:nth-child(1) { animation: float 2s ease-in-out infinite; }
 .bubble-dot:nth-child(2) { animation: float 2s ease-in-out 0.2s infinite; background: var(--purple); }
 .bubble-dot:nth-child(3) { animation: float 2s ease-in-out 0.4s infinite; background: var(--coral); }
+
+/* ================ ENHANCED UI/UX ================ */
+
+/* Smooth page transitions */
+.page-transition {
+  animation: page-enter 0.4s ease-out;
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Staggered children animations */
+.stagger-children > * {
+  animation: stagger-in 0.3s ease-out forwards;
+  opacity: 0;
+}
+
+.stagger-children > *:nth-child(1) { animation-delay: 0.05s; }
+.stagger-children > *:nth-child(2) { animation-delay: 0.1s; }
+.stagger-children > *:nth-child(3) { animation-delay: 0.15s; }
+.stagger-children > *:nth-child(4) { animation-delay: 0.2s; }
+.stagger-children > *:nth-child(5) { animation-delay: 0.25s; }
+.stagger-children > *:nth-child(6) { animation-delay: 0.3s; }
+
+@keyframes stagger-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Interactive card hover */
+.card-interactive {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-interactive:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(107, 155, 158, 0.12);
+}
+
+.card-interactive:active {
+  transform: translateY(-2px);
+}
+
+/* Subtle pulse for attention */
+@keyframes subtle-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.02);
+  }
+}
+
+.pulse-attention {
+  animation: subtle-pulse 2s ease-in-out infinite;
+}
+
+/* Icon spin on hover */
+.icon-spin-hover:hover svg {
+  animation: icon-spin 0.6s ease;
+}
+
+@keyframes icon-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Text reveal animation */
+.text-reveal {
+  clip-path: inset(0 100% 0 0);
+  animation: text-reveal 0.6s ease-out forwards;
+}
+
+@keyframes text-reveal {
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* Glow on hover */
+.glow-hover {
+  transition: box-shadow 0.3s ease;
+}
+
+.glow-hover:hover {
+  box-shadow: 0 0 20px var(--teal-subtle), 0 0 40px rgba(107, 155, 158, 0.1);
+}
+
+/* Smooth score number animation */
+.score-animate {
+  transition: color 0.3s ease, transform 0.2s ease;
+}
+
+.score-animate:hover {
+  transform: scale(1.1);
+}
+
+/* Tag/chip hover effect */
+.tag-hover {
+  transition: all 0.2s ease;
+}
+
+.tag-hover:hover {
+  background: var(--teal-subtle);
+  color: var(--teal);
+  transform: translateY(-1px);
+}
+
+/* Smooth underline animation */
+.underline-animate {
+  position: relative;
+  text-decoration: none;
+}
+
+.underline-animate::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: var(--teal);
+  transition: width 0.3s ease;
+}
+
+.underline-animate:hover::after {
+  width: 100%;
+}
+
+/* Loading shimmer overlay */
+.loading-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.loading-shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    transparent 100%
+  );
+  animation: shimmer-overlay 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer-overlay {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Breathing animation for CTA */
+.breathe {
+  animation: breathe 3s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 4px 20px rgba(107, 155, 158, 0.2);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 8px 30px rgba(107, 155, 158, 0.3);
+  }
+}
+
+/* Empty state animation */
+.empty-state-animate {
+  animation: empty-bounce 2s ease-in-out infinite;
+}
+
+@keyframes empty-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+/* Progress bar fill animation */
+.progress-fill {
+  transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Tooltip styling */
+.tooltip {
+  position: relative;
+}
+
+.tooltip::before {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  padding: 6px 10px;
+  background: var(--foreground);
+  color: var(--background);
+  font-size: 12px;
+  border-radius: var(--radius);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.2s ease;
+}
+
+.tooltip:hover::before {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Smooth count-up numbers */
+.count-up {
+  font-variant-numeric: tabular-nums;
+  transition: color 0.3s ease;
+}
+
+/* Focus ring enhancement */
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--teal);
+  border-radius: var(--radius);
+}
+
+/* Gradient text shimmer */
+.text-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--teal) 0%,
+    var(--purple) 25%,
+    var(--teal) 50%,
+    var(--purple) 75%,
+    var(--teal) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: text-shimmer 3s linear infinite;
+}
+
+@keyframes text-shimmer {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+/* Success checkmark animation */
+@keyframes check-bounce {
+  0% { transform: scale(0); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+.check-animate {
+  animation: check-bounce 0.4s ease-out;
+}
+
+/* Notification badge pulse */
+.badge-pulse {
+  position: relative;
+}
+
+.badge-pulse::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: inherit;
+  opacity: 0.6;
+  animation: badge-ping 1.5s ease-out infinite;
+}
+
+@keyframes badge-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/* Skeleton with better colors */
+.skeleton-enhanced {
+  background: linear-gradient(
+    90deg,
+    var(--background-secondary) 0%,
+    var(--background-tertiary) 25%,
+    var(--background-elevated) 50%,
+    var(--background-tertiary) 75%,
+    var(--background-secondary) 100%
+  );
+  background-size: 400% 100%;
+  animation: skeleton-enhanced 2s ease-in-out infinite;
+  border-radius: var(--radius);
+}
+
+@keyframes skeleton-enhanced {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* Smooth modal backdrop */
+.backdrop-blur-enter {
+  animation: backdrop-in 0.3s ease-out;
+}
+
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(12px);
+  }
+}
+
+/* Research credit indicator */
+.credit-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--background-tertiary);
+  overflow: hidden;
+}
+
+.credit-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease, background 0.3s ease;
+}
+
+.credit-bar-fill.low { background: var(--coral); }
+.credit-bar-fill.medium { background: var(--teal); }
+.credit-bar-fill.high { background: var(--accent); }
