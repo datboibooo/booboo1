@@ -23,8 +23,10 @@ import {
   Globe,
   Flame,
   ChevronRight,
+  Brain,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BuyerSimulation } from "@/components/simulation/buyer-simulation";
 
 interface Lead {
   name: string;
@@ -75,6 +77,7 @@ export default function LandingPage() {
   const [showResults, setShowResults] = React.useState(false);
   const [recentSearches, setRecentSearches] = React.useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = React.useState(false);
+  const [showSimulation, setShowSimulation] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   // Load recent searches from localStorage
@@ -160,13 +163,22 @@ export default function LandingPage() {
           </motion.div>
           <span className="logo-drip-3d text-2xl">drip drip</span>
         </Link>
-        <Link
-          href="/drip"
-          className="text-sm text-[--foreground-muted] hover:text-[--foreground] transition-colors flex items-center gap-1.5 px-4 py-2 rounded-full hover:bg-[--background-secondary]"
-        >
-          Dashboard
-          <ArrowRight className="h-3.5 w-3.5" />
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowSimulation(true)}
+            className="text-sm text-[--foreground-muted] hover:text-[--foreground] transition-colors flex items-center gap-1.5 px-4 py-2 rounded-full hover:bg-[--background-secondary] border border-transparent hover:border-[--border]"
+          >
+            <Brain className="h-4 w-4" />
+            Simulate
+          </button>
+          <Link
+            href="/drip"
+            className="text-sm text-[--foreground-muted] hover:text-[--foreground] transition-colors flex items-center gap-1.5 px-4 py-2 rounded-full hover:bg-[--background-secondary]"
+          >
+            Dashboard
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
       </nav>
 
       {/* Main content */}
@@ -423,6 +435,21 @@ export default function LandingPage() {
           <span className="text-[--purple]">No API keys required</span>
         </div>
       </footer>
+
+      {/* Buyer Simulation Modal */}
+      <AnimatePresence>
+        {showSimulation && (
+          <BuyerSimulation
+            open={showSimulation}
+            onClose={() => setShowSimulation(false)}
+            onSearchGenerated={(queries) => {
+              if (queries.length > 0) {
+                handleSearch(queries[0]);
+              }
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
