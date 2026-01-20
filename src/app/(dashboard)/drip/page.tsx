@@ -316,6 +316,18 @@ export default function DripFeedPage() {
   );
 }
 
+// Signal context mapping - explains WHY the signal matters
+const SIGNAL_CONTEXT: Record<string, { action: string; urgency: "high" | "medium" | "low" }> = {
+  "Hiring Engineers": { action: "Building product team", urgency: "high" },
+  "Hiring Sales": { action: "Scaling revenue", urgency: "high" },
+  "Engineering Growth": { action: "Expanding tech team", urgency: "high" },
+  "Leadership Change": { action: "New decision makers", urgency: "medium" },
+  "New Funding": { action: "Budget unlocked", urgency: "high" },
+  "Product Launch": { action: "Active growth", urgency: "medium" },
+  "Tech Adoption": { action: "Modernizing stack", urgency: "medium" },
+  "Remote Hiring": { action: "Distributed team", urgency: "low" },
+};
+
 // Simplified Lead Card Component
 function LeadCardSimple({
   lead,
@@ -331,14 +343,26 @@ function LeadCardSimple({
   const isSaved = lead.status === "saved";
   const isHot = lead.score >= 80;
 
+  // Get context for a signal
+  const getSignalContext = (signalName: string) => {
+    return SIGNAL_CONTEXT[signalName] || { action: "Active signal", urgency: "low" as const };
+  };
+
   return (
     <div
       className={cn(
-        "water-card rounded-2xl p-5 cursor-pointer transition-all hover:shadow-lg group",
+        "water-card rounded-2xl p-5 cursor-pointer transition-all hover:shadow-lg group relative",
         isSaved && "border-[--purple]/40 bg-[--purple]/5"
       )}
       onClick={onSelect}
     >
+      {/* Hot badge */}
+      {isHot && (
+        <div className="absolute -top-2 -right-2 px-2 py-0.5 rounded-full bg-[--coral] text-white text-xs font-medium shadow-lg">
+          Hot
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1 min-w-0">
@@ -379,33 +403,41 @@ function LeadCardSimple({
         {lead.geo && <span>{lead.geo}</span>}
       </div>
 
-      {/* Signals */}
-      <div className="flex flex-wrap gap-1.5 mb-3">
-        {lead.triggeredSignals.slice(0, 2).map((signal, idx) => (
-          <span
-            key={idx}
-            className={cn(
-              "px-2 py-0.5 text-xs rounded-md",
-              signal.priority === "high"
-                ? "bg-[--coral]/10 text-[--coral]"
-                : signal.priority === "medium"
-                ? "bg-[--teal]/10 text-[--teal]"
-                : "bg-[--background-tertiary] text-[--foreground-muted]"
-            )}
-          >
-            {signal.signalName}
-          </span>
-        ))}
+      {/* Signals with context - shows WHY it matters */}
+      <div className="space-y-2 mb-3">
+        {lead.triggeredSignals.slice(0, 2).map((signal, idx) => {
+          const ctx = getSignalContext(signal.signalName);
+          return (
+            <div
+              key={idx}
+              className={cn(
+                "flex items-center justify-between p-2 rounded-lg",
+                signal.priority === "high" ? "bg-[--coral]/5" :
+                signal.priority === "medium" ? "bg-[--teal]/5" : "bg-[--background-secondary]"
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <div className={cn(
+                  "w-1.5 h-1.5 rounded-full",
+                  signal.priority === "high" ? "bg-[--coral]" :
+                  signal.priority === "medium" ? "bg-[--teal]" : "bg-[--foreground-subtle]"
+                )} />
+                <span className="text-sm font-medium">{signal.signalName}</span>
+              </div>
+              <span className="text-xs text-[--foreground-muted]">{ctx.action}</span>
+            </div>
+          );
+        })}
         {lead.triggeredSignals.length > 2 && (
-          <span className="text-xs text-[--foreground-subtle]">
-            +{lead.triggeredSignals.length - 2}
-          </span>
+          <p className="text-xs text-[--foreground-subtle] pl-4">
+            +{lead.triggeredSignals.length - 2} more signals
+          </p>
         )}
       </div>
 
-      {/* Why Now - simplified */}
-      <p className="text-sm text-[--foreground-muted] line-clamp-2 mb-4">
-        {lead.whyNow}
+      {/* Why Now - the key insight */}
+      <p className="text-sm text-[--foreground-muted] line-clamp-2 mb-4 italic">
+        "{lead.whyNow}"
       </p>
 
       {/* Actions */}
