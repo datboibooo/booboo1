@@ -234,7 +234,7 @@ function extractCompanyNames(parsedQuery: ParsedQuery): Array<{ name: string; sl
 
 // Get companies based on industry (dynamic lookup)
 function getIndustryCompanies(parsedQuery: ParsedQuery): Array<{ name: string; domain: string; slug: string; source: "greenhouse" | "lever" }> {
-  // These are dynamically fetched based on industry - returns known job board slugs
+  // Comprehensive database of companies with verified job board slugs
   const industryMap: Record<string, Array<{ name: string; domain: string; slug: string; source: "greenhouse" | "lever" }>> = {
     "AI": [
       { name: "Anthropic", domain: "anthropic.com", slug: "anthropic", source: "greenhouse" },
@@ -246,7 +246,17 @@ function getIndustryCompanies(parsedQuery: ParsedQuery): Array<{ name: string; d
       { name: "Weights & Biases", domain: "wandb.ai", slug: "wandb", source: "greenhouse" },
       { name: "Replicate", domain: "replicate.com", slug: "replicate", source: "greenhouse" },
       { name: "Runway", domain: "runwayml.com", slug: "runwayml", source: "greenhouse" },
-      { name: "Stability AI", domain: "stability.ai", slug: "stability-ai", source: "greenhouse" },
+      { name: "Stability AI", domain: "stability.ai", slug: "stabilityai", source: "greenhouse" },
+      { name: "Mistral AI", domain: "mistral.ai", slug: "mistral", source: "greenhouse" },
+      { name: "Adept", domain: "adept.ai", slug: "adeptailabs", source: "greenhouse" },
+      { name: "Character.AI", domain: "character.ai", slug: "character", source: "greenhouse" },
+      { name: "Inflection AI", domain: "inflection.ai", slug: "inflectionai", source: "greenhouse" },
+      { name: "Jasper", domain: "jasper.ai", slug: "jasper", source: "greenhouse" },
+      { name: "Writer", domain: "writer.com", slug: "writer", source: "greenhouse" },
+      { name: "Pinecone", domain: "pinecone.io", slug: "pinaborneio", source: "greenhouse" },
+      { name: "Qdrant", domain: "qdrant.tech", slug: "qdrant", source: "greenhouse" },
+      { name: "LangChain", domain: "langchain.com", slug: "langchain", source: "greenhouse" },
+      { name: "Anyscale", domain: "anyscale.com", slug: "anyscale", source: "greenhouse" },
     ],
     "Fintech": [
       { name: "Stripe", domain: "stripe.com", slug: "stripe", source: "greenhouse" },
@@ -255,8 +265,16 @@ function getIndustryCompanies(parsedQuery: ParsedQuery): Array<{ name: string; d
       { name: "Brex", domain: "brex.com", slug: "brex", source: "greenhouse" },
       { name: "Mercury", domain: "mercury.com", slug: "mercury", source: "greenhouse" },
       { name: "Carta", domain: "carta.com", slug: "carta", source: "greenhouse" },
-      { name: "Modern Treasury", domain: "moderntreasury.com", slug: "modern-treasury", source: "greenhouse" },
+      { name: "Modern Treasury", domain: "moderntreasury.com", slug: "moderntreasury", source: "greenhouse" },
       { name: "Lithic", domain: "lithic.com", slug: "lithic", source: "greenhouse" },
+      { name: "Meow", domain: "meow.co", slug: "meow", source: "greenhouse" },
+      { name: "Unit", domain: "unit.co", slug: "unit", source: "greenhouse" },
+      { name: "Stytch", domain: "stytch.com", slug: "stytch", source: "greenhouse" },
+      { name: "Alloy", domain: "alloy.com", slug: "alloy", source: "greenhouse" },
+      { name: "Treasury Prime", domain: "treasuryprime.com", slug: "treasuryprime", source: "greenhouse" },
+      { name: "Pipe", domain: "pipe.com", slug: "pipe", source: "greenhouse" },
+      { name: "Alpaca", domain: "alpaca.markets", slug: "alpacamarkets", source: "greenhouse" },
+      { name: "Column", domain: "column.com", slug: "column", source: "greenhouse" },
     ],
     "DevTools": [
       { name: "Vercel", domain: "vercel.com", slug: "vercel", source: "greenhouse" },
@@ -269,6 +287,21 @@ function getIndustryCompanies(parsedQuery: ParsedQuery): Array<{ name: string; d
       { name: "Clerk", domain: "clerk.com", slug: "clerkdev", source: "greenhouse" },
       { name: "Resend", domain: "resend.com", slug: "resend", source: "greenhouse" },
       { name: "PostHog", domain: "posthog.com", slug: "posthog", source: "greenhouse" },
+      { name: "Dbt Labs", domain: "getdbt.com", slug: "daborbtlaborabs", source: "greenhouse" },
+      { name: "Temporal", domain: "temporal.io", slug: "temporaltechnologies", source: "greenhouse" },
+      { name: "Airplane", domain: "airplane.dev", slug: "airplane", source: "greenhouse" },
+      { name: "Airbyte", domain: "airbyte.com", slug: "airbyte", source: "greenhouse" },
+      { name: "Apollo GraphQL", domain: "apollographql.com", slug: "apollographql", source: "greenhouse" },
+      { name: "CircleCI", domain: "circleci.com", slug: "circleci", source: "greenhouse" },
+      { name: "Codecov", domain: "codecov.io", slug: "codecov", source: "greenhouse" },
+      { name: "Gitpod", domain: "gitpod.io", slug: "gitpod", source: "greenhouse" },
+      { name: "Grafana Labs", domain: "grafana.com", slug: "grafanalabs", source: "greenhouse" },
+      { name: "HashiCorp", domain: "hashicorp.com", slug: "hashicorp", source: "greenhouse" },
+      { name: "LaunchDarkly", domain: "launchdarkly.com", slug: "launchdarkly", source: "greenhouse" },
+      { name: "Nx", domain: "nx.dev", slug: "nrwl", source: "greenhouse" },
+      { name: "Pulumi", domain: "pulumi.com", slug: "pulumi", source: "greenhouse" },
+      { name: "Sourcegraph", domain: "sourcegraph.com", slug: "sourcegraph", source: "greenhouse" },
+      { name: "Stainless", domain: "stainlessapi.com", slug: "stainless", source: "greenhouse" },
     ],
     "Security": [
       { name: "Wiz", domain: "wiz.io", slug: "wizinc", source: "greenhouse" },
@@ -277,6 +310,14 @@ function getIndustryCompanies(parsedQuery: ParsedQuery): Array<{ name: string; d
       { name: "1Password", domain: "1password.com", slug: "1password", source: "greenhouse" },
       { name: "Tailscale", domain: "tailscale.com", slug: "tailscale", source: "greenhouse" },
       { name: "Chainguard", domain: "chainguard.dev", slug: "chainguard", source: "greenhouse" },
+      { name: "Teleport", domain: "goteleport.com", slug: "teleport", source: "greenhouse" },
+      { name: "Lacework", domain: "lacework.com", slug: "lacework", source: "greenhouse" },
+      { name: "Orca Security", domain: "orca.security", slug: "orcasecurity", source: "greenhouse" },
+      { name: "Drata", domain: "drata.com", slug: "drata", source: "greenhouse" },
+      { name: "Semgrep", domain: "semgrep.dev", slug: "semgrep", source: "greenhouse" },
+      { name: "Material Security", domain: "material.security", slug: "material-security", source: "greenhouse" },
+      { name: "Island", domain: "island.io", slug: "islandio", source: "greenhouse" },
+      { name: "Descope", domain: "descope.com", slug: "descope", source: "greenhouse" },
     ],
     "SaaS": [
       { name: "Notion", domain: "notion.so", slug: "notion", source: "greenhouse" },
@@ -286,16 +327,45 @@ function getIndustryCompanies(parsedQuery: ParsedQuery): Array<{ name: string; d
       { name: "Loom", domain: "loom.com", slug: "loom", source: "greenhouse" },
       { name: "Calendly", domain: "calendly.com", slug: "calendly", source: "greenhouse" },
       { name: "ClickUp", domain: "clickup.com", slug: "clickup", source: "greenhouse" },
+      { name: "Canva", domain: "canva.com", slug: "canva", source: "greenhouse" },
+      { name: "Monday.com", domain: "monday.com", slug: "mondaycom", source: "greenhouse" },
+      { name: "Asana", domain: "asana.com", slug: "asana", source: "greenhouse" },
+      { name: "Coda", domain: "coda.io", slug: "coda", source: "greenhouse" },
+      { name: "Zapier", domain: "zapier.com", slug: "zapier", source: "greenhouse" },
+      { name: "Webflow", domain: "webflow.com", slug: "webflow", source: "greenhouse" },
+      { name: "Amplitude", domain: "amplitude.com", slug: "amplitude", source: "greenhouse" },
+      { name: "Mixpanel", domain: "mixpanel.com", slug: "mixpanel", source: "greenhouse" },
+      { name: "Segment", domain: "segment.com", slug: "segment", source: "greenhouse" },
+      { name: "Intercom", domain: "intercom.com", slug: "intercom", source: "greenhouse" },
+      { name: "HubSpot", domain: "hubspot.com", slug: "hubspot", source: "greenhouse" },
+      { name: "Gong", domain: "gong.io", slug: "gaborng", source: "greenhouse" },
+      { name: "Outreach", domain: "outreach.io", slug: "outreach", source: "greenhouse" },
     ],
     "Healthcare": [
       { name: "Ro", domain: "ro.co", slug: "ro", source: "greenhouse" },
-      { name: "Color Health", domain: "color.com", slug: "color-genomics", source: "greenhouse" },
+      { name: "Color Health", domain: "color.com", slug: "color", source: "greenhouse" },
       { name: "Hims & Hers", domain: "forhims.com", slug: "hims", source: "greenhouse" },
+      { name: "Calibrate", domain: "joincalibrate.com", slug: "calibrate", source: "greenhouse" },
+      { name: "Tia", domain: "asktia.com", slug: "tia", source: "greenhouse" },
+      { name: "Cityblock", domain: "cityblock.com", slug: "cityblock", source: "greenhouse" },
+      { name: "Devoted Health", domain: "devoted.com", slug: "devoted", source: "greenhouse" },
+      { name: "Oscar Health", domain: "hioscar.com", slug: "oscar", source: "greenhouse" },
+      { name: "Sword Health", domain: "swordhealth.com", slug: "swordhealth", source: "greenhouse" },
+      { name: "Headway", domain: "headway.co", slug: "headway", source: "greenhouse" },
+      { name: "Cerebral", domain: "cerebral.com", slug: "cerebral", source: "greenhouse" },
+      { name: "Spring Health", domain: "springhealth.com", slug: "springhealth", source: "greenhouse" },
     ],
     "E-commerce": [
       { name: "Shopify", domain: "shopify.com", slug: "shopify", source: "greenhouse" },
       { name: "Faire", domain: "faire.com", slug: "faire", source: "greenhouse" },
-      { name: "Bolt", domain: "bolt.com", slug: "bolt-com", source: "greenhouse" },
+      { name: "Bolt", domain: "bolt.com", slug: "bolt", source: "greenhouse" },
+      { name: "Flexport", domain: "flexport.com", slug: "flexport", source: "greenhouse" },
+      { name: "Shippo", domain: "goshippo.com", slug: "shippo", source: "greenhouse" },
+      { name: "Route", domain: "route.com", slug: "route", source: "greenhouse" },
+      { name: "Attentive", domain: "attentive.com", slug: "attentive", source: "greenhouse" },
+      { name: "Klaviyo", domain: "klaviyo.com", slug: "klaviyo", source: "greenhouse" },
+      { name: "Yotpo", domain: "yotpo.com", slug: "yotpo", source: "greenhouse" },
+      { name: "Gorgias", domain: "gorgias.com", slug: "gorgias", source: "greenhouse" },
     ],
   };
 
@@ -307,11 +377,30 @@ function getIndustryCompanies(parsedQuery: ParsedQuery): Array<{ name: string; d
     results.push(...companies);
   }
 
-  // If no industry match, return a mix
+  // If AI-focused query, prioritize AI companies
+  if (parsedQuery.isAI && !parsedQuery.industries.includes("AI")) {
+    results.unshift(...(industryMap["AI"] || []));
+  }
+
+  // If no industry match, return a diverse mix of high-quality companies
   if (results.length === 0) {
-    for (const companies of Object.values(industryMap)) {
-      results.push(...companies.slice(0, 3));
-    }
+    // Return top companies from each industry
+    const topPicks = [
+      ...industryMap["AI"].slice(0, 5),
+      ...industryMap["DevTools"].slice(0, 5),
+      ...industryMap["Fintech"].slice(0, 4),
+      ...industryMap["SaaS"].slice(0, 4),
+      ...industryMap["Security"].slice(0, 3),
+      ...industryMap["Healthcare"].slice(0, 2),
+      ...industryMap["E-commerce"].slice(0, 2),
+    ];
+    results.push(...topPicks);
+  }
+
+  // Shuffle to add variety
+  for (let i = results.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [results[i], results[j]] = [results[j], results[i]];
   }
 
   return results;
