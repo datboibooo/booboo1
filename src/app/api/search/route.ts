@@ -567,6 +567,22 @@ export async function POST(request: Request) {
       } else {
         results = webResults;
       }
+
+      // Fallback to Florida database if web search returns nothing
+      if (results.length === 0) {
+        console.log("Web search returned no results, falling back to Florida database");
+        const localResults = searchFloridaDB(query, { limit });
+        localResultsCount = localResults.length;
+        results.push(...localResults);
+
+        if (results.length === 0) {
+          // Final fallback: hot leads
+          const hotLeadsResults = getHotLeads(limit).map(formatFloridaBusiness);
+          localResultsCount = hotLeadsResults.length;
+          results.push(...hotLeadsResults);
+        }
+        errors.push("Web search unavailable. Showing Florida home service businesses.");
+      }
     }
     // MODE: Local Florida database only
     else if (mode === "local") {
@@ -577,6 +593,9 @@ export async function POST(request: Request) {
     else {
       const floridaKeywords = ["florida", "fl", "miami", "orlando", "tampa", "jacksonville", "roofing", "hvac", "plumbing", "pool", "landscaping", "kitchen", "bath", "painting", "electrical", "solar", "pest", "cleaning", "home service", "renovation", "remodel"];
       const isFloridaSearch = floridaKeywords.some(k => query.toLowerCase().includes(k));
+
+      // Extract business-related intent from query
+      const isBusinessQuery = /company|companies|business|startup|find|search|hiring|team|scaling/i.test(query);
 
       if (isFloridaSearch || hotLeadsOnly) {
         const localResults = searchFloridaDB(query, { category, region, limit, minScore, hotLeadsOnly });
@@ -589,6 +608,7 @@ export async function POST(request: Request) {
           results.push(...webResults);
         }
       } else {
+        // Try web search first
         const webResults = await searchWeb(query, Math.ceil(limit / 2));
         webResultsCount = webResults.length;
 
@@ -608,9 +628,20 @@ export async function POST(request: Request) {
           results.push(...webResults);
         }
 
+        // Then add local results
         const localResults = searchFloridaDB(query, { limit: limit - results.length });
         localResultsCount = localResults.length;
         results.push(...localResults);
+      }
+
+      // IMPORTANT: Always fallback to hot leads if no results found
+      // This ensures users ALWAYS get useful results
+      if (results.length === 0 && isBusinessQuery) {
+        console.log("No results from web or query search, falling back to hot leads");
+        const hotLeadsResults = getHotLeads(limit).map(formatFloridaBusiness);
+        localResultsCount = hotLeadsResults.length;
+        results.push(...hotLeadsResults);
+        errors.push("No exact matches found. Showing top Florida home service businesses instead.");
       }
     }
 
