@@ -516,101 +516,108 @@ function generateBusinessDatabase(): FloridaBusiness[] {
   const businesses: FloridaBusiness[] = [];
   let id = 1;
 
-  // Generate businesses for each category and region
-  for (const [category, subCategories] of Object.entries(CATEGORIES)) {
-    for (const [region, cities] of Object.entries(FLORIDA_CITIES)) {
-      // Number of businesses per category per region
-      const businessesPerRegion = Math.ceil(1000 / (Object.keys(CATEGORIES).length * Object.keys(FLORIDA_CITIES).length));
+  // Helper function to generate a single business
+  const generateBusiness = (category: string, region: string, cities: string[]): FloridaBusiness => {
+    const subCategories = CATEGORIES[category] || [category];
+    const city = cities[Math.floor(Math.random() * cities.length)];
+    const subCategory = subCategories[Math.floor(Math.random() * subCategories.length)];
+    const name = generateBusinessName(category, city);
 
-      for (let i = 0; i < businessesPerRegion; i++) {
-        const city = cities[Math.floor(Math.random() * cities.length)];
-        const subCategory = subCategories[Math.floor(Math.random() * subCategories.length)];
-        const name = generateBusinessName(category, city);
-
-        const revenues: FloridaBusiness["estimatedRevenue"][] = ["Under $500K", "$500K-$1M", "$1M-$5M", "$5M-$10M", "$10M+"];
-        const revenueWeights = [15, 30, 35, 15, 5]; // Most are $500K-$5M
-        const revenueRoll = Math.random() * 100;
-        let revenueIdx = 0;
-        let cumulative = 0;
-        for (let j = 0; j < revenueWeights.length; j++) {
-          cumulative += revenueWeights[j];
-          if (revenueRoll < cumulative) {
-            revenueIdx = j;
-            break;
-          }
-        }
-        const estimatedRevenue = revenues[revenueIdx];
-
-        const employeeCounts: FloridaBusiness["employeeCount"][] = ["1-5", "6-10", "11-25", "26-50", "51+"];
-        const employeeWeights = [25, 35, 25, 10, 5];
-        const employeeRoll = Math.random() * 100;
-        let employeeIdx = 0;
-        cumulative = 0;
-        for (let j = 0; j < employeeWeights.length; j++) {
-          cumulative += employeeWeights[j];
-          if (employeeRoll < cumulative) {
-            employeeIdx = j;
-            break;
-          }
-        }
-        const employeeCount = employeeCounts[employeeIdx];
-
-        const yearsInBusiness = Math.floor(Math.random() * 25) + 1;
-
-        // Social presence (most don't have good video)
-        const socialPresence = {
-          facebook: Math.random() > 0.3, // 70% have FB
-          instagram: Math.random() > 0.5, // 50% have IG
-          youtube: Math.random() > 0.85, // 15% have YouTube
-          tiktok: Math.random() > 0.92, // 8% have TikTok
-          hasVideo: Math.random() > 0.75, // Only 25% have video content
-        };
-
-        const signals = generateSignals(category, estimatedRevenue, employeeCount, yearsInBusiness);
-        const score = calculateScore(estimatedRevenue, employeeCount, yearsInBusiness, socialPresence);
-
-        const businessData: Partial<FloridaBusiness> = {
-          id: `fl_${id.toString().padStart(4, "0")}`,
-          name,
-          category,
-          subCategory,
-          city,
-          region: region as FloridaBusiness["region"],
-          estimatedRevenue,
-          employeeCount,
-          yearsInBusiness,
-          socialPresence,
-        };
-
-        const videoBuyerCriteria = generateVideoBuyerCriteria(
-          category,
-          estimatedRevenue,
-          employeeCount,
-          yearsInBusiness,
-          socialPresence
-        );
-
-        const business: FloridaBusiness = {
-          ...businessData as FloridaBusiness,
-          phone: generatePhone(city),
-          website: Math.random() > 0.2 ? `${name.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 20)}.com` : undefined,
-          email: Math.random() > 0.3 ? `info@${name.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 15)}.com` : undefined,
-          signals,
-          score,
-          whyNow: generateWhyNow(businessData),
-          painPoints: generatePainPoints(category),
-          idealFor: generateIdealFor(category),
-          videoBuyerCriteria,
-        };
-
-        businesses.push(business);
-        id++;
-
-        if (businesses.length >= 1000) break;
+    const revenues: FloridaBusiness["estimatedRevenue"][] = ["Under $500K", "$500K-$1M", "$1M-$5M", "$5M-$10M", "$10M+"];
+    const revenueWeights = [15, 30, 35, 15, 5];
+    const revenueRoll = Math.random() * 100;
+    let revenueIdx = 0;
+    let cumulative = 0;
+    for (let j = 0; j < revenueWeights.length; j++) {
+      cumulative += revenueWeights[j];
+      if (revenueRoll < cumulative) {
+        revenueIdx = j;
+        break;
       }
-      if (businesses.length >= 1000) break;
     }
-    if (businesses.length >= 1000) break;
+    const estimatedRevenue = revenues[revenueIdx];
+
+    const employeeCounts: FloridaBusiness["employeeCount"][] = ["1-5", "6-10", "11-25", "26-50", "51+"];
+    const employeeWeights = [25, 35, 25, 10, 5];
+    const employeeRoll = Math.random() * 100;
+    let employeeIdx = 0;
+    cumulative = 0;
+    for (let j = 0; j < employeeWeights.length; j++) {
+      cumulative += employeeWeights[j];
+      if (employeeRoll < cumulative) {
+        employeeIdx = j;
+        break;
+      }
+    }
+    const employeeCount = employeeCounts[employeeIdx];
+
+    const yearsInBusiness = Math.floor(Math.random() * 25) + 1;
+
+    const socialPresence = {
+      facebook: Math.random() > 0.3,
+      instagram: Math.random() > 0.5,
+      youtube: Math.random() > 0.85,
+      tiktok: Math.random() > 0.92,
+      hasVideo: Math.random() > 0.75,
+    };
+
+    const signals = generateSignals(category, estimatedRevenue, employeeCount, yearsInBusiness);
+    const score = calculateScore(estimatedRevenue, employeeCount, yearsInBusiness, socialPresence);
+
+    const businessData: Partial<FloridaBusiness> = {
+      id: `fl_${id.toString().padStart(4, "0")}`,
+      name,
+      category,
+      subCategory,
+      city,
+      region: region as FloridaBusiness["region"],
+      estimatedRevenue,
+      employeeCount,
+      yearsInBusiness,
+      socialPresence,
+    };
+
+    const videoBuyerCriteria = generateVideoBuyerCriteria(
+      category,
+      estimatedRevenue,
+      employeeCount,
+      yearsInBusiness,
+      socialPresence
+    );
+
+    const business: FloridaBusiness = {
+      ...businessData as FloridaBusiness,
+      phone: generatePhone(city),
+      website: Math.random() > 0.2 ? `${name.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 20)}.com` : undefined,
+      email: Math.random() > 0.3 ? `info@${name.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 15)}.com` : undefined,
+      signals,
+      score,
+      whyNow: generateWhyNow(businessData),
+      painPoints: generatePainPoints(category),
+      idealFor: generateIdealFor(category),
+      videoBuyerCriteria,
+    };
+
+    id++;
+    return business;
+  };
+
+  const regions = Object.keys(FLORIDA_CITIES) as Array<keyof typeof FLORIDA_CITIES>;
+
+  // FIRST: Generate 500 Kitchen & Bath businesses (50% of database)
+  for (let i = 0; i < 500; i++) {
+    const region = regions[Math.floor(Math.random() * regions.length)];
+    const cities = FLORIDA_CITIES[region];
+    businesses.push(generateBusiness("Kitchen & Bath", region, cities));
+  }
+
+  // SECOND: Generate 500 other home service businesses (remaining 50%)
+  const otherCategories = Object.keys(CATEGORIES).filter(c => c !== "Kitchen & Bath");
+  for (let i = 0; i < 500; i++) {
+    const category = otherCategories[Math.floor(Math.random() * otherCategories.length)];
+    const region = regions[Math.floor(Math.random() * regions.length)];
+    const cities = FLORIDA_CITIES[region];
+    businesses.push(generateBusiness(category, region, cities));
   }
 
   // Sort by score descending
