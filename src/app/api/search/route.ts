@@ -1,658 +1,285 @@
 /**
- * Dynamic Search API - Pulls ALL data from the web in real-time
- * NO static database - discovers companies via web search + job board APIs
- *
- * Flow:
- * 1. Parse query to understand intent
- * 2. Search web for matching companies
- * 3. Discover job boards dynamically (Greenhouse/Lever)
- * 4. Scrape websites for signals
- * 5. Score and rank results
+ * Florida Home Service Business Search API
+ * Find local businesses that need AI video content for social media
+ * Package: 20 videos / $2,000
  */
 
 import { NextResponse } from "next/server";
-import { quickEnrich, type EnhancedResearch } from "@/lib/firecrawl";
-
-// ============ TECH PATTERNS ============
-const TECH_PATTERNS: Record<string, RegExp> = {
-  "React": /\breact\b/i,
-  "Next.js": /\bnext\.?js\b/i,
-  "Vue": /\bvue\.?js?\b/i,
-  "Angular": /\bangular\b/i,
-  "TypeScript": /\btypescript\b/i,
-  "Node.js": /\bnode\.?js\b/i,
-  "Python": /\bpython\b/i,
-  "Go": /\bgolang\b|\bgo\s+(programming|developer|engineer)/i,
-  "Rust": /\brust\b/i,
-  "Kubernetes": /\bkubernetes\b|\bk8s\b/i,
-  "AWS": /\baws\b|\bamazon web services\b/i,
-  "GCP": /\bgcp\b|\bgoogle cloud\b/i,
-  "PostgreSQL": /\bpostgres(ql)?\b/i,
-  "MongoDB": /\bmongodb\b/i,
-  "Redis": /\bredis\b/i,
-  "GraphQL": /\bgraphql\b/i,
-  "Docker": /\bdocker\b/i,
-  "Terraform": /\bterraform\b/i,
-  "PyTorch": /\bpytorch\b/i,
-  "TensorFlow": /\btensorflow\b/i,
-  "OpenAI": /\bopenai\b/i,
-  "LangChain": /\blangchain\b/i,
-};
-
-// ============ DEPARTMENT PATTERNS ============
-const DEPT_PATTERNS: Record<string, { pattern: RegExp; titles: string[] }> = {
-  "Engineering": {
-    pattern: /engineer|developer|software|backend|frontend|fullstack|sre|devops|platform|architect/i,
-    titles: ["VP of Engineering", "CTO", "Engineering Manager"],
-  },
-  "Sales": {
-    pattern: /sales|account executive|sdr|bdr|revenue|ae\b|account manager/i,
-    titles: ["VP of Sales", "CRO", "Head of Sales"],
-  },
-  "Marketing": {
-    pattern: /marketing|growth|content|brand|demand gen|pmm/i,
-    titles: ["VP of Marketing", "CMO", "Head of Growth"],
-  },
-  "Product": {
-    pattern: /product manager|product design|pm\b|product lead/i,
-    titles: ["VP of Product", "CPO", "Head of Product"],
-  },
-  "Design": {
-    pattern: /designer|ux|ui|creative|visual/i,
-    titles: ["VP of Design", "Head of Design"],
-  },
-  "Data": {
-    pattern: /data scientist|data engineer|analytics|ml engineer|machine learning|ai engineer/i,
-    titles: ["VP of Data", "Head of Data Science"],
-  },
-  "Operations": {
-    pattern: /operations|ops|support|success|customer success/i,
-    titles: ["VP of Operations", "COO"],
-  },
-  "HR": {
-    pattern: /hr\b|human resources|people|talent|recruiting/i,
-    titles: ["VP of People", "CHRO", "Head of Talent"],
-  },
-};
+import {
+  FLORIDA_BUSINESSES,
+  searchFloridaBusinesses,
+  getHotLeads,
+  getByCategory,
+  getByRegion,
+  FLORIDA_BUSINESS_STATS,
+  type FloridaBusiness,
+} from "@/lib/data/florida-businesses";
 
 // ============ QUERY PARSER ============
 interface ParsedQuery {
   original: string;
-  industries: string[];
-  techStack: string[];
-  departments: string[];
-  stages: string[];
-  locations: string[];
+  categories: string[];
+  regions: string[];
+  cities: string[];
   keywords: string[];
-  isAI: boolean;
-  isHiring: boolean;
+  minScore?: number;
+  revenueRange?: string;
+  employeeRange?: string;
+  needsVideo: boolean;
+  noSocial: boolean;
 }
 
 function parseQuery(query: string): ParsedQuery {
   const lower = query.toLowerCase();
   const result: ParsedQuery = {
     original: query,
-    industries: [],
-    techStack: [],
-    departments: [],
-    stages: [],
-    locations: [],
+    categories: [],
+    regions: [],
+    cities: [],
     keywords: [],
-    isAI: false,
-    isHiring: false,
+    needsVideo: false,
+    noSocial: false,
   };
 
-  // Industry detection
-  const industries: Record<string, string[]> = {
-    "AI": ["ai", "artificial intelligence", "machine learning", "ml", "llm", "gpt", "deep learning"],
-    "Fintech": ["fintech", "finance", "payment", "banking", "neobank"],
-    "DevTools": ["devtool", "developer tool", "api", "sdk", "infrastructure"],
-    "Security": ["security", "cybersecurity", "infosec", "compliance"],
-    "SaaS": ["saas", "b2b", "enterprise software"],
-    "Healthcare": ["health", "healthcare", "telehealth", "medical"],
-    "E-commerce": ["ecommerce", "e-commerce", "retail", "shopify"],
+  // Category detection
+  const categoryMap: Record<string, string[]> = {
+    "Roofing": ["roof", "roofing", "roofer", "shingle"],
+    "HVAC": ["hvac", "ac", "air conditioning", "heating", "cooling", "air condition"],
+    "Plumbing": ["plumb", "plumber", "plumbing", "pipe", "drain"],
+    "Electrical": ["electric", "electrical", "electrician", "wiring"],
+    "Pool Service": ["pool", "pools", "swimming pool"],
+    "Landscaping": ["landscape", "landscaping", "lawn", "garden", "tree", "yard"],
+    "Pest Control": ["pest", "exterminator", "bug", "termite", "rodent"],
+    "Cleaning": ["clean", "cleaning", "maid", "janitorial", "pressure wash"],
+    "Painting": ["paint", "painter", "painting"],
+    "Flooring": ["floor", "flooring", "tile", "carpet", "hardwood"],
+    "Kitchen & Bath": ["kitchen", "bath", "bathroom", "remodel", "renovation"],
+    "Garage Doors": ["garage", "garage door", "overhead door"],
+    "Windows & Doors": ["window", "door", "glass", "impact"],
+    "Fencing": ["fence", "fencing"],
+    "Concrete": ["concrete", "paving", "driveway", "patio", "masonry"],
+    "Solar": ["solar", "solar panel", "energy"],
+    "Security": ["security", "alarm", "camera", "surveillance"],
+    "Moving": ["moving", "mover", "relocation"],
+    "Handyman": ["handyman", "repair", "fix"],
+    "Septic": ["septic", "septic tank", "pumping"],
   };
 
-  for (const [industry, keywords] of Object.entries(industries)) {
+  for (const [category, keywords] of Object.entries(categoryMap)) {
     if (keywords.some(k => lower.includes(k))) {
-      result.industries.push(industry);
+      result.categories.push(category);
     }
   }
 
-  // Tech detection
-  for (const [tech, pattern] of Object.entries(TECH_PATTERNS)) {
-    if (pattern.test(lower)) result.techStack.push(tech);
+  // Region detection
+  const regionMap: Record<string, string[]> = {
+    "South Florida": ["south florida", "miami", "fort lauderdale", "boca", "west palm", "broward", "dade", "palm beach"],
+    "Central Florida": ["central florida", "orlando", "kissimmee", "daytona", "melbourne", "ocala", "gainesville", "lakeland"],
+    "Tampa Bay": ["tampa", "st pete", "st. petersburg", "clearwater", "bradenton", "sarasota", "naples", "fort myers", "cape coral"],
+    "Jacksonville": ["jacksonville", "jax", "st augustine", "ponte vedra"],
+    "Panhandle": ["panhandle", "pensacola", "destin", "panama city", "tallahassee", "fort walton"],
+  };
+
+  for (const [region, keywords] of Object.entries(regionMap)) {
+    if (keywords.some(k => lower.includes(k))) {
+      result.regions.push(region);
+    }
   }
 
-  // Department detection
-  for (const [dept, config] of Object.entries(DEPT_PATTERNS)) {
-    if (config.pattern.test(lower)) result.departments.push(dept);
+  // City detection (major cities)
+  const cities = ["miami", "orlando", "tampa", "jacksonville", "fort lauderdale", "west palm beach", "naples", "sarasota", "pensacola", "gainesville"];
+  for (const city of cities) {
+    if (lower.includes(city)) {
+      result.cities.push(city);
+    }
   }
 
-  // Stage detection
-  if (/seed|early/i.test(lower)) result.stages.push("seed");
-  if (/series\s*a/i.test(lower)) result.stages.push("series-a");
-  if (/series\s*b/i.test(lower)) result.stages.push("series-b");
-  if (/growth|scaling/i.test(lower)) result.stages.push("growth");
+  // Special filters
+  if (lower.includes("no video") || lower.includes("needs video") || lower.includes("without video")) {
+    result.needsVideo = true;
+  }
+  if (lower.includes("no social") || lower.includes("no facebook") || lower.includes("no instagram")) {
+    result.noSocial = true;
+  }
 
-  // Location detection
-  if (/sf|san francisco|bay area/i.test(lower)) result.locations.push("San Francisco");
-  if (/nyc|new york/i.test(lower)) result.locations.push("New York");
-  if (/remote/i.test(lower)) result.locations.push("Remote");
+  // Revenue filters
+  if (lower.includes("1m") || lower.includes("million")) {
+    result.revenueRange = "$1M-$5M";
+  }
+  if (lower.includes("500k") || lower.includes("small")) {
+    result.revenueRange = "$500K-$1M";
+  }
 
-  // Flags
-  result.isAI = result.industries.includes("AI") || /ai|ml|llm/i.test(lower);
-  result.isHiring = /hiring|jobs|careers|recruiting/i.test(lower);
+  // Score filter
+  if (lower.includes("hot") || lower.includes("best") || lower.includes("top")) {
+    result.minScore = 75;
+  }
+  if (lower.includes("high score") || lower.includes("high potential")) {
+    result.minScore = 80;
+  }
 
-  // Extract keywords (remove common words)
-  const stopWords = ["the", "and", "for", "with", "that", "this", "are", "companies", "company", "startups", "startup", "hiring", "looking"];
+  // Extract keywords
+  const stopWords = ["the", "and", "for", "with", "that", "this", "are", "companies", "company", "businesses", "business", "find", "show", "florida", "in", "near"];
   result.keywords = lower.split(/\s+/).filter(w => w.length > 2 && !stopWords.includes(w));
 
   return result;
 }
 
-// ============ WEB SEARCH FOR COMPANIES ============
-async function searchForCompanies(parsedQuery: ParsedQuery): Promise<Array<{ name: string; domain: string; description?: string }>> {
-  const companies: Array<{ name: string; domain: string; description?: string }> = [];
+// ============ FILTER BUSINESSES ============
+function filterBusinesses(parsedQuery: ParsedQuery): FloridaBusiness[] {
+  let results = [...FLORIDA_BUSINESSES];
 
-  // Build search query
-  let searchQuery = parsedQuery.original;
-  if (parsedQuery.isHiring) {
-    searchQuery += " careers jobs greenhouse lever";
-  }
-  if (parsedQuery.industries.length > 0 && !parsedQuery.original.toLowerCase().includes(parsedQuery.industries[0].toLowerCase())) {
-    searchQuery += ` ${parsedQuery.industries[0]} companies`;
+  // Filter by category
+  if (parsedQuery.categories.length > 0) {
+    results = results.filter(b =>
+      parsedQuery.categories.some(c => b.category.toLowerCase() === c.toLowerCase())
+    );
   }
 
-  try {
-    // Try to find companies via Greenhouse boards API (they have a discovery endpoint)
-    // Search for companies with job boards
-    const greenhouseSearch = await fetch(
-      `https://boards-api.greenhouse.io/v1/boards?content=true`,
-      { signal: AbortSignal.timeout(5000), next: { revalidate: 3600 } }
-    ).catch(() => null);
-
-    // For now, let's use a dynamic approach: search for known patterns
-    // and extract company domains from job board URLs
-
-    // Try common company name patterns from the query
-    const potentialCompanies = extractCompanyNames(parsedQuery);
-
-    for (const company of potentialCompanies) {
-      // Try to find their job board
-      const jobBoard = await findJobBoard(company.slug);
-      if (jobBoard) {
-        companies.push({
-          name: company.name,
-          domain: company.domain || `${company.slug}.com`,
-          description: jobBoard.description,
-        });
-      }
-    }
-
-    // If we didn't find enough, try some well-known companies based on industry
-    if (companies.length < 5) {
-      const industryCompanies = getIndustryCompanies(parsedQuery);
-      for (const company of industryCompanies) {
-        if (!companies.find(c => c.domain === company.domain)) {
-          companies.push(company);
-        }
-        if (companies.length >= 20) break;
-      }
-    }
-  } catch (error) {
-    console.error("Search error:", error);
+  // Filter by region
+  if (parsedQuery.regions.length > 0) {
+    results = results.filter(b =>
+      parsedQuery.regions.some(r => b.region.toLowerCase().includes(r.toLowerCase()))
+    );
   }
 
-  return companies.slice(0, 20);
-}
-
-// Extract potential company names from query
-function extractCompanyNames(parsedQuery: ParsedQuery): Array<{ name: string; slug: string; domain?: string }> {
-  const companies: Array<{ name: string; slug: string; domain?: string }> = [];
-
-  // Check if query contains specific company names
-  const words = parsedQuery.original.split(/\s+/);
-  for (const word of words) {
-    // Skip common words
-    if (word.length < 3) continue;
-    if (/^(the|and|for|with|companies|startups|hiring|ai|ml|saas)$/i.test(word)) continue;
-
-    // Check if it looks like a company name (capitalized or domain-like)
-    if (/^[A-Z]/.test(word) || word.includes(".")) {
-      const slug = word.toLowerCase().replace(/[^a-z0-9]/g, "");
-      companies.push({
-        name: word,
-        slug,
-        domain: word.includes(".") ? word : undefined,
-      });
-    }
+  // Filter by city
+  if (parsedQuery.cities.length > 0) {
+    results = results.filter(b =>
+      parsedQuery.cities.some(c => b.city.toLowerCase().includes(c.toLowerCase()))
+    );
   }
 
-  return companies;
-}
-
-// Get companies based on industry (dynamic lookup)
-function getIndustryCompanies(parsedQuery: ParsedQuery): Array<{ name: string; domain: string; slug: string; source: "greenhouse" | "lever" }> {
-  // Comprehensive database of companies with verified job board slugs
-  const industryMap: Record<string, Array<{ name: string; domain: string; slug: string; source: "greenhouse" | "lever" }>> = {
-    "AI": [
-      { name: "Anthropic", domain: "anthropic.com", slug: "anthropic", source: "greenhouse" },
-      { name: "OpenAI", domain: "openai.com", slug: "openai", source: "greenhouse" },
-      { name: "Cohere", domain: "cohere.com", slug: "cohere", source: "greenhouse" },
-      { name: "Perplexity", domain: "perplexity.ai", slug: "perplexityai", source: "greenhouse" },
-      { name: "Hugging Face", domain: "huggingface.co", slug: "huggingface", source: "greenhouse" },
-      { name: "Scale AI", domain: "scale.com", slug: "scaleai", source: "greenhouse" },
-      { name: "Weights & Biases", domain: "wandb.ai", slug: "wandb", source: "greenhouse" },
-      { name: "Replicate", domain: "replicate.com", slug: "replicate", source: "greenhouse" },
-      { name: "Runway", domain: "runwayml.com", slug: "runwayml", source: "greenhouse" },
-      { name: "Stability AI", domain: "stability.ai", slug: "stabilityai", source: "greenhouse" },
-      { name: "Mistral AI", domain: "mistral.ai", slug: "mistral", source: "greenhouse" },
-      { name: "Adept", domain: "adept.ai", slug: "adeptailabs", source: "greenhouse" },
-      { name: "Character.AI", domain: "character.ai", slug: "character", source: "greenhouse" },
-      { name: "Inflection AI", domain: "inflection.ai", slug: "inflectionai", source: "greenhouse" },
-      { name: "Jasper", domain: "jasper.ai", slug: "jasper", source: "greenhouse" },
-      { name: "Writer", domain: "writer.com", slug: "writer", source: "greenhouse" },
-      { name: "Pinecone", domain: "pinecone.io", slug: "pinaborneio", source: "greenhouse" },
-      { name: "Qdrant", domain: "qdrant.tech", slug: "qdrant", source: "greenhouse" },
-      { name: "LangChain", domain: "langchain.com", slug: "langchain", source: "greenhouse" },
-      { name: "Anyscale", domain: "anyscale.com", slug: "anyscale", source: "greenhouse" },
-    ],
-    "Fintech": [
-      { name: "Stripe", domain: "stripe.com", slug: "stripe", source: "greenhouse" },
-      { name: "Plaid", domain: "plaid.com", slug: "plaid", source: "greenhouse" },
-      { name: "Ramp", domain: "ramp.com", slug: "ramp", source: "greenhouse" },
-      { name: "Brex", domain: "brex.com", slug: "brex", source: "greenhouse" },
-      { name: "Mercury", domain: "mercury.com", slug: "mercury", source: "greenhouse" },
-      { name: "Carta", domain: "carta.com", slug: "carta", source: "greenhouse" },
-      { name: "Modern Treasury", domain: "moderntreasury.com", slug: "moderntreasury", source: "greenhouse" },
-      { name: "Lithic", domain: "lithic.com", slug: "lithic", source: "greenhouse" },
-      { name: "Meow", domain: "meow.co", slug: "meow", source: "greenhouse" },
-      { name: "Unit", domain: "unit.co", slug: "unit", source: "greenhouse" },
-      { name: "Stytch", domain: "stytch.com", slug: "stytch", source: "greenhouse" },
-      { name: "Alloy", domain: "alloy.com", slug: "alloy", source: "greenhouse" },
-      { name: "Treasury Prime", domain: "treasuryprime.com", slug: "treasuryprime", source: "greenhouse" },
-      { name: "Pipe", domain: "pipe.com", slug: "pipe", source: "greenhouse" },
-      { name: "Alpaca", domain: "alpaca.markets", slug: "alpacamarkets", source: "greenhouse" },
-      { name: "Column", domain: "column.com", slug: "column", source: "greenhouse" },
-    ],
-    "DevTools": [
-      { name: "Vercel", domain: "vercel.com", slug: "vercel", source: "greenhouse" },
-      { name: "Supabase", domain: "supabase.com", slug: "supabase", source: "greenhouse" },
-      { name: "Linear", domain: "linear.app", slug: "linear", source: "greenhouse" },
-      { name: "Retool", domain: "retool.com", slug: "retool", source: "greenhouse" },
-      { name: "Neon", domain: "neon.tech", slug: "neondatabase", source: "greenhouse" },
-      { name: "PlanetScale", domain: "planetscale.com", slug: "planetscale", source: "greenhouse" },
-      { name: "Railway", domain: "railway.app", slug: "railway", source: "greenhouse" },
-      { name: "Clerk", domain: "clerk.com", slug: "clerkdev", source: "greenhouse" },
-      { name: "Resend", domain: "resend.com", slug: "resend", source: "greenhouse" },
-      { name: "PostHog", domain: "posthog.com", slug: "posthog", source: "greenhouse" },
-      { name: "Dbt Labs", domain: "getdbt.com", slug: "daborbtlaborabs", source: "greenhouse" },
-      { name: "Temporal", domain: "temporal.io", slug: "temporaltechnologies", source: "greenhouse" },
-      { name: "Airplane", domain: "airplane.dev", slug: "airplane", source: "greenhouse" },
-      { name: "Airbyte", domain: "airbyte.com", slug: "airbyte", source: "greenhouse" },
-      { name: "Apollo GraphQL", domain: "apollographql.com", slug: "apollographql", source: "greenhouse" },
-      { name: "CircleCI", domain: "circleci.com", slug: "circleci", source: "greenhouse" },
-      { name: "Codecov", domain: "codecov.io", slug: "codecov", source: "greenhouse" },
-      { name: "Gitpod", domain: "gitpod.io", slug: "gitpod", source: "greenhouse" },
-      { name: "Grafana Labs", domain: "grafana.com", slug: "grafanalabs", source: "greenhouse" },
-      { name: "HashiCorp", domain: "hashicorp.com", slug: "hashicorp", source: "greenhouse" },
-      { name: "LaunchDarkly", domain: "launchdarkly.com", slug: "launchdarkly", source: "greenhouse" },
-      { name: "Nx", domain: "nx.dev", slug: "nrwl", source: "greenhouse" },
-      { name: "Pulumi", domain: "pulumi.com", slug: "pulumi", source: "greenhouse" },
-      { name: "Sourcegraph", domain: "sourcegraph.com", slug: "sourcegraph", source: "greenhouse" },
-      { name: "Stainless", domain: "stainlessapi.com", slug: "stainless", source: "greenhouse" },
-    ],
-    "Security": [
-      { name: "Wiz", domain: "wiz.io", slug: "wizinc", source: "greenhouse" },
-      { name: "Snyk", domain: "snyk.io", slug: "snyk", source: "greenhouse" },
-      { name: "Vanta", domain: "vanta.com", slug: "vanta", source: "greenhouse" },
-      { name: "1Password", domain: "1password.com", slug: "1password", source: "greenhouse" },
-      { name: "Tailscale", domain: "tailscale.com", slug: "tailscale", source: "greenhouse" },
-      { name: "Chainguard", domain: "chainguard.dev", slug: "chainguard", source: "greenhouse" },
-      { name: "Teleport", domain: "goteleport.com", slug: "teleport", source: "greenhouse" },
-      { name: "Lacework", domain: "lacework.com", slug: "lacework", source: "greenhouse" },
-      { name: "Orca Security", domain: "orca.security", slug: "orcasecurity", source: "greenhouse" },
-      { name: "Drata", domain: "drata.com", slug: "drata", source: "greenhouse" },
-      { name: "Semgrep", domain: "semgrep.dev", slug: "semgrep", source: "greenhouse" },
-      { name: "Material Security", domain: "material.security", slug: "material-security", source: "greenhouse" },
-      { name: "Island", domain: "island.io", slug: "islandio", source: "greenhouse" },
-      { name: "Descope", domain: "descope.com", slug: "descope", source: "greenhouse" },
-    ],
-    "SaaS": [
-      { name: "Notion", domain: "notion.so", slug: "notion", source: "greenhouse" },
-      { name: "Figma", domain: "figma.com", slug: "figma", source: "greenhouse" },
-      { name: "Airtable", domain: "airtable.com", slug: "airtable", source: "greenhouse" },
-      { name: "Miro", domain: "miro.com", slug: "miro", source: "greenhouse" },
-      { name: "Loom", domain: "loom.com", slug: "loom", source: "greenhouse" },
-      { name: "Calendly", domain: "calendly.com", slug: "calendly", source: "greenhouse" },
-      { name: "ClickUp", domain: "clickup.com", slug: "clickup", source: "greenhouse" },
-      { name: "Canva", domain: "canva.com", slug: "canva", source: "greenhouse" },
-      { name: "Monday.com", domain: "monday.com", slug: "mondaycom", source: "greenhouse" },
-      { name: "Asana", domain: "asana.com", slug: "asana", source: "greenhouse" },
-      { name: "Coda", domain: "coda.io", slug: "coda", source: "greenhouse" },
-      { name: "Zapier", domain: "zapier.com", slug: "zapier", source: "greenhouse" },
-      { name: "Webflow", domain: "webflow.com", slug: "webflow", source: "greenhouse" },
-      { name: "Amplitude", domain: "amplitude.com", slug: "amplitude", source: "greenhouse" },
-      { name: "Mixpanel", domain: "mixpanel.com", slug: "mixpanel", source: "greenhouse" },
-      { name: "Segment", domain: "segment.com", slug: "segment", source: "greenhouse" },
-      { name: "Intercom", domain: "intercom.com", slug: "intercom", source: "greenhouse" },
-      { name: "HubSpot", domain: "hubspot.com", slug: "hubspot", source: "greenhouse" },
-      { name: "Gong", domain: "gong.io", slug: "gaborng", source: "greenhouse" },
-      { name: "Outreach", domain: "outreach.io", slug: "outreach", source: "greenhouse" },
-    ],
-    "Healthcare": [
-      { name: "Ro", domain: "ro.co", slug: "ro", source: "greenhouse" },
-      { name: "Color Health", domain: "color.com", slug: "color", source: "greenhouse" },
-      { name: "Hims & Hers", domain: "forhims.com", slug: "hims", source: "greenhouse" },
-      { name: "Calibrate", domain: "joincalibrate.com", slug: "calibrate", source: "greenhouse" },
-      { name: "Tia", domain: "asktia.com", slug: "tia", source: "greenhouse" },
-      { name: "Cityblock", domain: "cityblock.com", slug: "cityblock", source: "greenhouse" },
-      { name: "Devoted Health", domain: "devoted.com", slug: "devoted", source: "greenhouse" },
-      { name: "Oscar Health", domain: "hioscar.com", slug: "oscar", source: "greenhouse" },
-      { name: "Sword Health", domain: "swordhealth.com", slug: "swordhealth", source: "greenhouse" },
-      { name: "Headway", domain: "headway.co", slug: "headway", source: "greenhouse" },
-      { name: "Cerebral", domain: "cerebral.com", slug: "cerebral", source: "greenhouse" },
-      { name: "Spring Health", domain: "springhealth.com", slug: "springhealth", source: "greenhouse" },
-    ],
-    "E-commerce": [
-      { name: "Shopify", domain: "shopify.com", slug: "shopify", source: "greenhouse" },
-      { name: "Faire", domain: "faire.com", slug: "faire", source: "greenhouse" },
-      { name: "Bolt", domain: "bolt.com", slug: "bolt", source: "greenhouse" },
-      { name: "Flexport", domain: "flexport.com", slug: "flexport", source: "greenhouse" },
-      { name: "Shippo", domain: "goshippo.com", slug: "shippo", source: "greenhouse" },
-      { name: "Route", domain: "route.com", slug: "route", source: "greenhouse" },
-      { name: "Attentive", domain: "attentive.com", slug: "attentive", source: "greenhouse" },
-      { name: "Klaviyo", domain: "klaviyo.com", slug: "klaviyo", source: "greenhouse" },
-      { name: "Yotpo", domain: "yotpo.com", slug: "yotpo", source: "greenhouse" },
-      { name: "Gorgias", domain: "gorgias.com", slug: "gorgias", source: "greenhouse" },
-    ],
-  };
-
-  const results: Array<{ name: string; domain: string; slug: string; source: "greenhouse" | "lever" }> = [];
-
-  // Get companies from matching industries
-  for (const industry of parsedQuery.industries) {
-    const companies = industryMap[industry] || [];
-    results.push(...companies);
+  // Filter by video need
+  if (parsedQuery.needsVideo) {
+    results = results.filter(b => !b.socialPresence.hasVideo);
   }
 
-  // If AI-focused query, prioritize AI companies
-  if (parsedQuery.isAI && !parsedQuery.industries.includes("AI")) {
-    results.unshift(...(industryMap["AI"] || []));
+  // Filter by no social
+  if (parsedQuery.noSocial) {
+    results = results.filter(b => !b.socialPresence.facebook && !b.socialPresence.instagram);
   }
 
-  // If no industry match, return a diverse mix of high-quality companies
-  if (results.length === 0) {
-    // Return top companies from each industry
-    const topPicks = [
-      ...industryMap["AI"].slice(0, 5),
-      ...industryMap["DevTools"].slice(0, 5),
-      ...industryMap["Fintech"].slice(0, 4),
-      ...industryMap["SaaS"].slice(0, 4),
-      ...industryMap["Security"].slice(0, 3),
-      ...industryMap["Healthcare"].slice(0, 2),
-      ...industryMap["E-commerce"].slice(0, 2),
-    ];
-    results.push(...topPicks);
+  // Filter by revenue
+  if (parsedQuery.revenueRange) {
+    results = results.filter(b => b.estimatedRevenue === parsedQuery.revenueRange);
   }
 
-  // Shuffle to add variety
-  for (let i = results.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [results[i], results[j]] = [results[j], results[i]];
+  // Filter by minimum score
+  if (parsedQuery.minScore) {
+    results = results.filter(b => b.score >= parsedQuery.minScore);
   }
+
+  // Sort by score descending
+  results.sort((a, b) => b.score - a.score);
 
   return results;
 }
 
-// Try to find a company's job board
-async function findJobBoard(slug: string): Promise<{ source: "greenhouse" | "lever"; description?: string } | null> {
-  // Try Greenhouse first
-  try {
-    const ghResponse = await fetch(
-      `https://boards-api.greenhouse.io/v1/boards/${slug}`,
-      { signal: AbortSignal.timeout(3000) }
-    );
-    if (ghResponse.ok) {
-      const data = await ghResponse.json();
-      return { source: "greenhouse", description: data.content };
-    }
-  } catch {}
+// ============ FORMAT FOR UI ============
+function formatBusinessForUI(business: FloridaBusiness) {
+  // Generate video content package recommendation
+  const packageRecommendation = generatePackageRec(business);
 
-  // Try Lever
-  try {
-    const leverResponse = await fetch(
-      `https://api.lever.co/v0/postings/${slug}?limit=1`,
-      { signal: AbortSignal.timeout(3000) }
-    );
-    if (leverResponse.ok) {
-      return { source: "lever" };
-    }
-  } catch {}
-
-  return null;
-}
-
-// ============ JOB BOARD CRAWLERS ============
-interface Job {
-  title: string;
-  department: string;
-  location: string;
-  url: string;
-  seniority: string;
-}
-
-interface CrawlResult {
-  name: string;
-  domain: string;
-  jobs: Job[];
-  totalJobs: number;
-  techStack: string[];
-  departments: Record<string, number>;
-  signals: string[];
-  hiringVelocity: "aggressive" | "moderate" | "stable";
-  topDepartments: string[];
-  seniorityMix: Record<string, number>;
-}
-
-async function crawlGreenhouse(name: string, domain: string, slug: string): Promise<CrawlResult | null> {
-  try {
-    const response = await fetch(
-      `https://boards-api.greenhouse.io/v1/boards/${slug}/jobs`,
-      { signal: AbortSignal.timeout(10000), next: { revalidate: 300 } }
-    );
-
-    if (!response.ok) return null;
-
-    const data = await response.json();
-    return processJobData(name, domain, data.jobs || [], "greenhouse", slug);
-  } catch {
-    return null;
-  }
-}
-
-async function crawlLever(name: string, domain: string, slug: string): Promise<CrawlResult | null> {
-  try {
-    const response = await fetch(
-      `https://api.lever.co/v0/postings/${slug}`,
-      { signal: AbortSignal.timeout(10000), next: { revalidate: 300 } }
-    );
-
-    if (!response.ok) return null;
-
-    const data = await response.json();
-    return processJobData(name, domain, data || [], "lever", slug);
-  } catch {
-    return null;
-  }
-}
-
-function processJobData(
-  name: string,
-  domain: string,
-  jobsData: any[],
-  source: "greenhouse" | "lever",
-  slug: string
-): CrawlResult {
-  const jobs: Job[] = [];
-  const techStack = new Set<string>();
-  const departments: Record<string, number> = {};
-  const seniorityMix: Record<string, number> = { senior: 0, mid: 0, junior: 0, lead: 0, exec: 0 };
-  let allContent = "";
-
-  for (const job of jobsData) {
-    const title = source === "greenhouse" ? job.title : job.text;
-    const location = source === "greenhouse" ? job.location?.name : job.categories?.location;
-    const content = source === "greenhouse" ? job.content : job.descriptionPlain;
-    const url = source === "greenhouse"
-      ? job.absolute_url || `https://boards.greenhouse.io/${slug}/jobs/${job.id}`
-      : job.hostedUrl || job.applyUrl;
-
-    if (!title) continue;
-
-    allContent += " " + title + " " + (content || "");
-
-    // Detect department
-    let dept = "Other";
-    for (const [deptName, config] of Object.entries(DEPT_PATTERNS)) {
-      if (config.pattern.test(title)) {
-        dept = deptName;
-        break;
-      }
-    }
-    departments[dept] = (departments[dept] || 0) + 1;
-
-    // Detect seniority
-    let seniority = "mid";
-    if (/senior|sr\.?|staff|principal/i.test(title)) seniority = "senior";
-    else if (/junior|jr\.?|associate|entry/i.test(title)) seniority = "junior";
-    else if (/lead|manager|director/i.test(title)) seniority = "lead";
-    else if (/vp|vice president|chief|cto|cfo|coo|head of/i.test(title)) seniority = "exec";
-    seniorityMix[seniority]++;
-
-    jobs.push({ title, department: dept, location: location || "Remote", url, seniority });
-  }
-
-  // Extract tech stack from job content
-  for (const [tech, pattern] of Object.entries(TECH_PATTERNS)) {
-    if (pattern.test(allContent)) {
-      techStack.add(tech);
-    }
-  }
-
-  // Generate signals
-  const signals: string[] = [];
-  const totalJobs = jobs.length;
-
-  if (totalJobs >= 100) signals.push(`🔥 Hyper-growth: ${totalJobs} open roles`);
-  else if (totalJobs >= 50) signals.push(`📈 Aggressive hiring: ${totalJobs} open roles`);
-  else if (totalJobs >= 20) signals.push(`📊 Growing team: ${totalJobs} open roles`);
-  else if (totalJobs >= 10) signals.push(`💼 Active hiring: ${totalJobs} open roles`);
-
-  if (departments["Engineering"] >= 20) signals.push(`💻 Major eng build: ${departments["Engineering"]} roles`);
-  else if (departments["Engineering"] >= 10) signals.push(`⚡ Scaling engineering: ${departments["Engineering"]} roles`);
-
-  if (departments["Sales"] >= 10) signals.push(`💰 Revenue expansion: ${departments["Sales"]} sales roles`);
-  else if (departments["Sales"] >= 5) signals.push(`📞 GTM growth: ${departments["Sales"]} sales roles`);
-
-  if (departments["Data"] >= 5) signals.push(`🤖 AI/Data investment: ${departments["Data"]} data roles`);
-  if (departments["Product"] >= 5) signals.push(`🎯 Product expansion: ${departments["Product"]} PM roles`);
-
-  // First hire signals
-  for (const [dept, count] of Object.entries(departments)) {
-    if (count === 1 && ["Data", "Design", "Product"].includes(dept)) {
-      signals.push(`🆕 First ${dept} hire`);
-    }
-  }
-
-  if (seniorityMix.exec >= 2) signals.push("👔 Exec team build");
-  if (seniorityMix.lead >= 5) signals.push("🎖️ Adding leadership layer");
-
-  const topDepartments = Object.entries(departments)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([dept]) => dept);
-
-  const hiringVelocity: CrawlResult["hiringVelocity"] =
-    totalJobs >= 50 ? "aggressive" : totalJobs >= 15 ? "moderate" : "stable";
+  // Generate opener
+  const openers = generateOpeners(business);
 
   return {
-    name,
-    domain,
-    jobs: jobs.slice(0, 15),
-    totalJobs,
-    techStack: Array.from(techStack),
-    departments,
-    signals,
-    hiringVelocity,
-    topDepartments,
-    seniorityMix,
+    id: business.id,
+    name: business.name,
+    domain: business.website || `${business.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.com`,
+
+    // Business details
+    industry: business.category,
+    subCategory: business.subCategory,
+    stage: business.estimatedRevenue,
+    location: `${business.city}, FL`,
+    region: business.region,
+    phone: business.phone,
+    email: business.email,
+    website: business.website,
+
+    // Company size
+    employeeCount: business.employeeCount,
+    yearsInBusiness: business.yearsInBusiness,
+
+    // Scoring
+    score: business.score,
+    signals: business.signals,
+
+    // Social presence (key for video pitch)
+    socialPresence: business.socialPresence,
+    hasVideo: business.socialPresence.hasVideo,
+    hasFacebook: business.socialPresence.facebook,
+    hasInstagram: business.socialPresence.instagram,
+    hasYouTube: business.socialPresence.youtube,
+    hasTikTok: business.socialPresence.tiktok,
+
+    // Video opportunity
+    videoOpportunity: !business.socialPresence.hasVideo ? "High" : business.socialPresence.youtube ? "Medium" : "Low",
+    packageRecommendation,
+
+    // Sales context
+    whyNow: business.whyNow,
+    painPoints: business.painPoints,
+    idealFor: business.idealFor,
+
+    // Video buyer criteria - WHY they would buy
+    videoBuyerCriteria: business.videoBuyerCriteria,
+    primaryUseCase: business.videoBuyerCriteria.primaryUseCase,
+    buyingIntent: business.videoBuyerCriteria.buyingIntent,
+    buyingIntentReasons: business.videoBuyerCriteria.buyingIntentReasons,
+    idealVideoTypes: business.videoBuyerCriteria.idealVideoTypes,
+    estimatedROI: business.videoBuyerCriteria.estimatedROI,
+    competitorThreat: business.videoBuyerCriteria.competitorThreat,
+    closingAngle: business.videoBuyerCriteria.closingAngle,
+    decisionMaker: business.videoBuyerCriteria.decisionMaker,
+    adSpendLevel: business.videoBuyerCriteria.adSpendEstimate,
+    useCases: business.videoBuyerCriteria.useCases,
+
+    // Outreach
+    openerShort: openers.short,
+    openerMedium: openers.medium,
+    targetTitles: [business.videoBuyerCriteria.decisionMaker, "Owner", "Marketing Manager"],
   };
 }
 
-// ============ SCORING ============
-function calculateScore(result: CrawlResult, enrichment: EnhancedResearch | null, parsedQuery: ParsedQuery): number {
-  let score = 0;
-
-  // Hiring velocity (0-35)
-  if (result.totalJobs >= 100) score += 35;
-  else if (result.totalJobs >= 50) score += 28;
-  else if (result.totalJobs >= 20) score += 20;
-  else if (result.totalJobs >= 10) score += 15;
-  else if (result.totalJobs >= 5) score += 10;
-
-  // Department match (0-20)
-  if (parsedQuery.departments.length > 0) {
-    const matches = parsedQuery.departments.filter(d => result.departments[d] > 0);
-    score += matches.length * 10;
-  } else if (result.departments["Engineering"] > 0 || result.departments["Sales"] > 0) {
-    score += 10;
+function generatePackageRec(business: FloridaBusiness): string {
+  if (!business.socialPresence.hasVideo && !business.socialPresence.instagram) {
+    return "Full Package: 20 videos ($2,000) - No video presence, huge opportunity";
   }
-
-  // Tech match (0-15)
-  if (parsedQuery.techStack.length > 0) {
-    const matches = parsedQuery.techStack.filter(t => result.techStack.includes(t));
-    score += matches.length * 5;
+  if (!business.socialPresence.hasVideo) {
+    return "Starter Package: 20 videos ($2,000) - Has social but no video content";
   }
-
-  // Signal strength (0-15)
-  score += Math.min(15, result.signals.length * 3);
-
-  // Enrichment bonus (0-15)
-  if (enrichment) {
-    if (enrichment.urgencyScore >= 7) score += 15;
-    else if (enrichment.urgencyScore >= 5) score += 10;
-    else score += 5;
+  if (business.socialPresence.hasVideo && !business.socialPresence.tiktok) {
+    return "Expansion Package: Short-form video focus for TikTok/Reels";
   }
-
-  return Math.min(99, score);
+  return "Refresh Package: Update existing video content";
 }
 
-// ============ OPENER GENERATION ============
-function generateOpener(result: CrawlResult, enrichment: EnhancedResearch | null): { short: string; medium: string } {
-  let keyInsight = "";
+function generateOpeners(business: FloridaBusiness): { short: string; medium: string } {
+  const videoStatus = !business.socialPresence.hasVideo
+    ? "I noticed you don't have any video content yet"
+    : "I see you're using some video content";
 
-  if (result.totalJobs >= 50) {
-    keyInsight = `your aggressive hiring push with ${result.totalJobs} open roles`;
-  } else if (result.totalJobs >= 20) {
-    keyInsight = `your team growth with ${result.totalJobs} open positions`;
-  } else if (result.departments["Engineering"] >= 5) {
-    keyInsight = `your engineering expansion`;
-  } else if (result.departments["Sales"] >= 3) {
-    keyInsight = `your GTM team build-out`;
-  } else if (enrichment?.signals?.[0]) {
-    keyInsight = enrichment.signals[0].content.toLowerCase();
-  } else {
-    keyInsight = `your growth trajectory`;
-  }
+  const categoryBenefit: Record<string, string> = {
+    "Roofing": "before/after roof transformations get 3x more engagement",
+    "HVAC": "AC repair videos build trust during Florida's hot season",
+    "Plumbing": "emergency plumbing tips videos get tons of local shares",
+    "Pool Service": "pool cleaning timelapses are incredibly shareable",
+    "Landscaping": "lawn transformation videos drive serious leads",
+    "Painting": "before/after paint reveals are social media gold",
+    "Solar": "ROI explanation videos help close high-ticket solar sales",
+    "Kitchen & Bath": "kitchen and bath renovation reveals go viral locally",
+    "Cleaning": "satisfying cleaning videos get massive engagement",
+    "default": "local service videos consistently outperform other content",
+  };
 
-  const short = `Noticed ${keyInsight} at ${result.name}. Companies at your stage often need [your value prop] to scale faster.`;
-  const medium = `Hi! I noticed ${keyInsight} at ${result.name}. ${
-    result.totalJobs >= 20
-      ? `With ${result.totalJobs} open roles, your team is clearly scaling fast.`
-      : `Growing teams like yours often face challenges with [pain point].`
-  } Would love to share some insights.`;
+  const benefit = categoryBenefit[business.category] || categoryBenefit["default"];
+
+  const short = `${videoStatus} for ${business.name}. ${business.category} businesses using video see 2-3x more leads.`;
+
+  const medium = `Hi! ${videoStatus} on social media for ${business.name}. I work with ${business.category.toLowerCase()} companies in ${business.region}, and ${benefit}. I create 20 professional videos for $2,000 - would that be helpful for getting more leads?`;
 
   return { short, medium };
 }
@@ -661,124 +288,87 @@ function generateOpener(result: CrawlResult, enrichment: EnhancedResearch | null
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { query, limit = 12, enrichWebsites = true } = body;
-
-    if (!query) {
-      return NextResponse.json({ error: "Query required" }, { status: 400 });
-    }
+    const { query, limit = 20, category, region, city, minScore, hotLeadsOnly } = body;
 
     const startTime = Date.now();
 
-    // 1. Parse query
-    const parsedQuery = parseQuery(query);
-
-    // 2. Find companies dynamically
-    const industryCompanies = getIndustryCompanies(parsedQuery);
-
-    // 3. Crawl job boards in parallel
-    const crawlPromises = industryCompanies.slice(0, limit * 2).map(async (company) => {
-      if (company.source === "lever") {
-        return crawlLever(company.name, company.domain, company.slug);
-      } else {
-        return crawlGreenhouse(company.name, company.domain, company.slug);
-      }
-    });
-
-    const crawlResults = await Promise.all(crawlPromises);
-    let validResults = crawlResults.filter((r): r is CrawlResult => r !== null && r.totalJobs > 0);
-
-    // 4. Enrich with website data (parallel)
-    const enrichments = new Map<string, EnhancedResearch | null>();
-    if (enrichWebsites && validResults.length > 0) {
-      const enrichPromises = validResults.slice(0, 8).map(async (r) => {
-        try {
-          const enrichment = await quickEnrich(r.domain);
-          return { domain: r.domain, enrichment };
-        } catch {
-          return { domain: r.domain, enrichment: null };
-        }
+    // If specific filters provided, use them directly
+    if (hotLeadsOnly) {
+      const leads = getHotLeads(limit).map(formatBusinessForUI);
+      return NextResponse.json({
+        success: true,
+        query: { original: "Hot leads", parsed: { hotLeadsOnly: true } },
+        stats: {
+          totalInDatabase: FLORIDA_BUSINESS_STATS.total,
+          leadsReturned: leads.length,
+          processingTimeMs: Date.now() - startTime,
+          categories: FLORIDA_BUSINESS_STATS.categories,
+          regions: FLORIDA_BUSINESS_STATS.regions,
+        },
+        leads,
       });
-      const enrichResults = await Promise.all(enrichPromises);
-      enrichResults.forEach((e) => enrichments.set(e.domain, e.enrichment));
     }
 
-    // 5. Score and rank
-    const scoredResults = validResults.map((result) => {
-      const enrichment = enrichments.get(result.domain) || null;
-      const score = calculateScore(result, enrichment, parsedQuery);
-      const opener = generateOpener(result, enrichment);
+    if (category && !query) {
+      const leads = getByCategory(category, limit).map(formatBusinessForUI);
+      return NextResponse.json({
+        success: true,
+        query: { original: `Category: ${category}`, parsed: { categories: [category] } },
+        stats: {
+          totalInDatabase: FLORIDA_BUSINESS_STATS.total,
+          leadsReturned: leads.length,
+          processingTimeMs: Date.now() - startTime,
+        },
+        leads,
+      });
+    }
 
-      return { ...result, score, opener, enrichment };
-    });
+    if (region && !query) {
+      const leads = getByRegion(region, limit).map(formatBusinessForUI);
+      return NextResponse.json({
+        success: true,
+        query: { original: `Region: ${region}`, parsed: { regions: [region] } },
+        stats: {
+          totalInDatabase: FLORIDA_BUSINESS_STATS.total,
+          leadsReturned: leads.length,
+          processingTimeMs: Date.now() - startTime,
+        },
+        leads,
+      });
+    }
 
-    scoredResults.sort((a, b) => b.score - a.score);
+    // Parse natural language query
+    const parsedQuery = query ? parseQuery(query) : {
+      original: "all",
+      categories: category ? [category] : [],
+      regions: region ? [region] : [],
+      cities: city ? [city] : [],
+      keywords: [],
+      minScore: minScore,
+      needsVideo: false,
+      noSocial: false,
+    };
 
-    // 6. Format response
-    const leads = scoredResults.slice(0, limit).map((r) => {
-      // Determine industry from enrichment or query context
-      const industry = r.enrichment?.industry ||
-        parsedQuery.industries[0] ||
-        (parsedQuery.isAI ? "AI/ML" : "Technology");
-
-      // Determine stage from enrichment or hiring velocity
-      const stage = r.enrichment?.stage ||
-        (r.hiringVelocity === "aggressive" ? "growth" :
-         r.totalJobs >= 20 ? "growth" : "startup");
-
-      return {
-        id: `lead_${r.domain.replace(/\./g, "_")}`,
-        name: r.name,
-        domain: r.domain,
-
-        // Required fields for UI display
-        industry,
-        stage,
-
-        // Hiring data
-        totalJobs: r.totalJobs,
-        hiringVelocity: r.hiringVelocity,
-        departments: r.departments,
-        topDepartments: r.topDepartments,
-        seniorityMix: r.seniorityMix,
-        techStack: r.techStack,
-        topJobs: r.jobs.slice(0, 8),
-
-        // Signals & scoring
-        score: r.score,
-        signals: r.signals,
-
-        // Outreach
-        openerShort: r.opener.short,
-        openerMedium: r.opener.medium,
-        targetTitles: DEPT_PATTERNS[r.topDepartments[0]]?.titles || ["VP of Sales", "Head of Growth"],
-
-        // Enrichment details
-        enrichment: r.enrichment ? {
-          description: r.enrichment.description,
-          industry: r.enrichment.industry,
-          companyType: r.enrichment.companyType,
-          stage: r.enrichment.stage,
-          painPoints: r.enrichment.painPoints,
-          outreachAngles: r.enrichment.outreachAngles?.slice(0, 2),
-          urgencyScore: r.enrichment.urgencyScore,
-          bestTiming: r.enrichment.bestTiming,
-        } : undefined,
-      };
-    });
+    // Filter and score businesses
+    const filteredBusinesses = filterBusinesses(parsedQuery);
+    const leads = filteredBusinesses.slice(0, limit).map(formatBusinessForUI);
 
     const processingTime = Date.now() - startTime;
 
     return NextResponse.json({
       success: true,
       query: {
-        original: query,
+        original: query || "default",
         parsed: parsedQuery,
       },
       stats: {
-        companiesCrawled: validResults.length,
+        totalInDatabase: FLORIDA_BUSINESS_STATS.total,
+        matchingBusinesses: filteredBusinesses.length,
         leadsReturned: leads.length,
         processingTimeMs: processingTime,
-        enrichmentEnabled: enrichWebsites,
+        avgScore: FLORIDA_BUSINESS_STATS.avgScore,
+        categories: FLORIDA_BUSINESS_STATS.categories,
+        regions: FLORIDA_BUSINESS_STATS.regions,
       },
       leads,
     });
@@ -792,26 +382,58 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get("q") || searchParams.get("query");
+  const category = searchParams.get("category");
+  const region = searchParams.get("region");
+  const limit = parseInt(searchParams.get("limit") || "20");
+  const hotLeads = searchParams.get("hot") === "true";
 
-  if (!query) {
+  if (!query && !category && !region && !hotLeads) {
+    // Return API info and stats
     return NextResponse.json({
       success: true,
-      message: "Dynamic search API - no static database",
-      usage: "POST with { query: 'ai startups hiring engineers' }",
-      features: [
-        "Real-time job board crawling (Greenhouse, Lever)",
-        "Website scraping for buying signals",
-        "Intelligent query parsing",
-        "Multi-factor lead scoring",
-        "Auto-generated outreach openers",
+      message: "Florida Home Service Business Lead API",
+      description: "Find local businesses that need AI video content for social media marketing",
+      package: "20 videos / $2,000",
+      stats: {
+        totalBusinesses: FLORIDA_BUSINESS_STATS.total,
+        categories: FLORIDA_BUSINESS_STATS.categories,
+        regions: FLORIDA_BUSINESS_STATS.regions,
+        avgScore: FLORIDA_BUSINESS_STATS.avgScore,
+      },
+      usage: {
+        "POST": {
+          description: "Search with natural language or filters",
+          example: {
+            query: "roofing companies in miami without video",
+            limit: 20,
+          },
+        },
+        "GET with query": "?q=plumbers+in+tampa",
+        "GET with category": "?category=HVAC&region=South+Florida",
+        "GET hot leads": "?hot=true&limit=10",
+      },
+      categories: [
+        "Roofing", "HVAC", "Plumbing", "Electrical", "Pool Service",
+        "Landscaping", "Pest Control", "Cleaning", "Painting", "Flooring",
+        "Kitchen & Bath", "Garage Doors", "Windows & Doors", "Fencing",
+        "Concrete", "Solar", "Security", "Moving", "Handyman", "Septic"
       ],
+      regions: ["South Florida", "Central Florida", "Tampa Bay", "Jacksonville", "Panhandle"],
     });
   }
 
-  // Redirect to POST
-  return NextResponse.json({
-    success: false,
-    error: "Use POST for search queries",
-    example: { query, limit: 10 },
-  });
+  // Forward to POST handler
+  const requestBody = {
+    query,
+    category,
+    region,
+    limit,
+    hotLeadsOnly: hotLeads,
+  };
+
+  return POST(new Request(request.url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(requestBody),
+  }));
 }
