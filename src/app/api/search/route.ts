@@ -714,41 +714,57 @@ export async function POST(request: Request) {
     scoredResults.sort((a, b) => b.score - a.score);
 
     // 6. Format response
-    const leads = scoredResults.slice(0, limit).map((r) => ({
-      id: `lead_${r.domain.replace(/\./g, "_")}`,
-      name: r.name,
-      domain: r.domain,
+    const leads = scoredResults.slice(0, limit).map((r) => {
+      // Determine industry from enrichment or query context
+      const industry = r.enrichment?.industry ||
+        parsedQuery.industries[0] ||
+        (parsedQuery.isAI ? "AI/ML" : "Technology");
 
-      // Hiring data
-      totalJobs: r.totalJobs,
-      hiringVelocity: r.hiringVelocity,
-      departments: r.departments,
-      topDepartments: r.topDepartments,
-      seniorityMix: r.seniorityMix,
-      techStack: r.techStack,
-      topJobs: r.jobs.slice(0, 8),
+      // Determine stage from enrichment or hiring velocity
+      const stage = r.enrichment?.stage ||
+        (r.hiringVelocity === "aggressive" ? "growth" :
+         r.totalJobs >= 20 ? "growth" : "startup");
 
-      // Signals & scoring
-      score: r.score,
-      signals: r.signals,
+      return {
+        id: `lead_${r.domain.replace(/\./g, "_")}`,
+        name: r.name,
+        domain: r.domain,
 
-      // Outreach
-      openerShort: r.opener.short,
-      openerMedium: r.opener.medium,
-      targetTitles: DEPT_PATTERNS[r.topDepartments[0]]?.titles || ["VP of Sales", "Head of Growth"],
+        // Required fields for UI display
+        industry,
+        stage,
 
-      // Enrichment
-      enrichment: r.enrichment ? {
-        description: r.enrichment.description,
-        industry: r.enrichment.industry,
-        companyType: r.enrichment.companyType,
-        stage: r.enrichment.stage,
-        painPoints: r.enrichment.painPoints,
-        outreachAngles: r.enrichment.outreachAngles?.slice(0, 2),
-        urgencyScore: r.enrichment.urgencyScore,
-        bestTiming: r.enrichment.bestTiming,
-      } : undefined,
-    }));
+        // Hiring data
+        totalJobs: r.totalJobs,
+        hiringVelocity: r.hiringVelocity,
+        departments: r.departments,
+        topDepartments: r.topDepartments,
+        seniorityMix: r.seniorityMix,
+        techStack: r.techStack,
+        topJobs: r.jobs.slice(0, 8),
+
+        // Signals & scoring
+        score: r.score,
+        signals: r.signals,
+
+        // Outreach
+        openerShort: r.opener.short,
+        openerMedium: r.opener.medium,
+        targetTitles: DEPT_PATTERNS[r.topDepartments[0]]?.titles || ["VP of Sales", "Head of Growth"],
+
+        // Enrichment details
+        enrichment: r.enrichment ? {
+          description: r.enrichment.description,
+          industry: r.enrichment.industry,
+          companyType: r.enrichment.companyType,
+          stage: r.enrichment.stage,
+          painPoints: r.enrichment.painPoints,
+          outreachAngles: r.enrichment.outreachAngles?.slice(0, 2),
+          urgencyScore: r.enrichment.urgencyScore,
+          bestTiming: r.enrichment.bestTiming,
+        } : undefined,
+      };
+    });
 
     const processingTime = Date.now() - startTime;
 
