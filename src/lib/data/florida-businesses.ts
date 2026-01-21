@@ -48,7 +48,7 @@ export interface FloridaBusiness {
 }
 
 // Categories of home service businesses
-const CATEGORIES = {
+const CATEGORIES: Record<string, string[]> = {
   "Roofing": ["Residential Roofing", "Commercial Roofing", "Roof Repair", "Storm Damage"],
   "HVAC": ["AC Repair", "AC Installation", "Heating", "Ductwork"],
   "Plumbing": ["Emergency Plumbing", "Drain Cleaning", "Water Heater", "Repiping"],
@@ -72,7 +72,7 @@ const CATEGORIES = {
 };
 
 // Florida cities by region
-const FLORIDA_CITIES = {
+const FLORIDA_CITIES: Record<string, string[]> = {
   "South Florida": ["Miami", "Fort Lauderdale", "West Palm Beach", "Boca Raton", "Hollywood", "Pembroke Pines", "Coral Springs", "Plantation", "Davie", "Sunrise", "Pompano Beach", "Deerfield Beach", "Boynton Beach", "Delray Beach", "Jupiter", "Palm Beach Gardens", "Wellington", "Homestead", "Kendall", "Hialeah"],
   "Central Florida": ["Orlando", "Kissimmee", "Sanford", "Clermont", "Winter Park", "Altamonte Springs", "Oviedo", "Lake Mary", "Daytona Beach", "Deltona", "Palm Bay", "Melbourne", "Titusville", "Cocoa", "Ocala", "Gainesville", "Lakeland", "Winter Haven"],
   "Tampa Bay": ["Tampa", "St. Petersburg", "Clearwater", "Brandon", "Largo", "Bradenton", "Sarasota", "Venice", "Port Charlotte", "Cape Coral", "Fort Myers", "Naples", "Bonita Springs", "Estero", "Punta Gorda"],
@@ -81,7 +81,7 @@ const FLORIDA_CITIES = {
 };
 
 // Common business name patterns
-const NAME_PATTERNS = {
+const NAME_PATTERNS: Record<string, string[]> = {
   "Roofing": ["Roofing", "Roof", "Roofers", "Roofing Co", "Roofing Services", "Roofing Solutions"],
   "HVAC": ["Air Conditioning", "AC", "HVAC", "Heating & Cooling", "Climate Control", "Air Solutions"],
   "Plumbing": ["Plumbing", "Plumbers", "Plumbing Services", "Pipe", "Drain"],

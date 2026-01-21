@@ -166,8 +166,9 @@ function filterBusinesses(parsedQuery: ParsedQuery): FloridaBusiness[] {
   }
 
   // Filter by minimum score
-  if (parsedQuery.minScore) {
-    results = results.filter(b => b.score >= parsedQuery.minScore);
+  if (parsedQuery.minScore !== undefined) {
+    const minScore = parsedQuery.minScore;
+    results = results.filter(b => b.score >= minScore);
   }
 
   // Sort by score descending
