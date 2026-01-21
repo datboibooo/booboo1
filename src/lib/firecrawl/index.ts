@@ -648,24 +648,26 @@ const INDUSTRY_PATTERNS: SignalPattern[] = [
 // Extract signals from scraped content
 function extractSignals(content: string, url: string): CompanyResearch["signals"] {
   const signals: CompanyResearch["signals"] = [];
-  const contentLower = content.toLowerCase();
   const seenSignals = new Set<string>();
 
   // Helper to add signal without duplicates
   const addSignal = (
     type: string,
-    content: string,
+    signalContent: string,
     confidence: "high" | "medium" | "low",
+    buyingIntent: "strong" | "moderate" | "weak",
     subtype?: string
   ) => {
-    const key = `${type}:${subtype || ""}:${content.toLowerCase().slice(0, 50)}`;
+    const key = `${type}:${subtype || ""}:${signalContent.toLowerCase().slice(0, 50)}`;
     if (seenSignals.has(key)) return;
     seenSignals.add(key);
     signals.push({
       type: subtype ? `${type} - ${subtype}` : type,
-      content,
+      subtype,
+      content: signalContent,
       source: url,
       confidence,
+      buyingIntent,
     });
   };
 
@@ -704,6 +706,7 @@ function extractSignals(content: string, url: string): CompanyResearch["signals"
         patternDef.type,
         signalContent,
         patternDef.confidence,
+        patternDef.buyingIntent,
         patternDef.subtype
       );
     }
@@ -1252,12 +1255,16 @@ function generateOutreachAngles(
   companyName: string
 ): EnhancedResearch["outreachAngles"] {
   const angles: EnhancedResearch["outreachAngles"] = [];
-  const signalTypes = new Set(signals.map(s => s.type));
-  const signalSubtypes = new Set(signals.map(s => `${s.type} - ${s.subtype || ""}`));
+
+  // Helper to check if any signal matches a category (handles "Funding - Series A" format)
+  const hasSignalCategory = (category: string) =>
+    signals.some(s => s.type.startsWith(category));
+
+  const hasSignalSubtype = (subtype: string) =>
+    signals.some(s => s.type.includes(subtype) || s.subtype === subtype);
 
   // Funding-based angles
-  if (signalTypes.has("Funding")) {
-    const fundingSignal = signals.find(s => s.type === "Funding");
+  if (hasSignalCategory("Funding")) {
     angles.push({
       angle: "Post-Funding Growth",
       opener: `Congrats on the recent funding! Companies at your stage often struggle with [problem]. We've helped similar companies like...`,
@@ -1267,9 +1274,8 @@ function generateOutreachAngles(
   }
 
   // Hiring-based angles
-  if (signalTypes.has("Hiring")) {
-    const hiringSignal = signals.find(s => s.type === "Hiring");
-    if (signalSubtypes.has("Hiring - Volume Hiring") || signalSubtypes.has("Hiring - Rapid Growth")) {
+  if (hasSignalCategory("Hiring")) {
+    if (hasSignalSubtype("Volume Hiring") || hasSignalSubtype("Rapid Growth")) {
       angles.push({
         angle: "Scaling Team Challenges",
         opener: `Saw you're rapidly growing the team. When companies double headcount, they often face [challenge]. We help by...`,
@@ -1277,7 +1283,7 @@ function generateOutreachAngles(
         priority: "high",
       });
     }
-    if (signalSubtypes.has("Hiring - Executive Hire") || signalSubtypes.has("Hiring - Leadership Hire")) {
+    if (hasSignalSubtype("Executive Hire") || hasSignalSubtype("Leadership Hire")) {
       angles.push({
         angle: "New Leadership Priorities",
         opener: `Noticed you brought on new leadership. New executives often look to make quick wins in their first 90 days...`,
@@ -1285,7 +1291,7 @@ function generateOutreachAngles(
         priority: "high",
       });
     }
-    if (signalSubtypes.has("Hiring - Department Growth")) {
+    if (hasSignalSubtype("Department Growth")) {
       angles.push({
         angle: "Department Build-Out",
         opener: `Saw you're building out the team. Companies investing in this area typically need [solution] to scale effectively...`,
@@ -1296,7 +1302,7 @@ function generateOutreachAngles(
   }
 
   // Product launch angles
-  if (signalTypes.has("Product")) {
+  if (hasSignalCategory("Product")) {
     angles.push({
       angle: "Post-Launch Momentum",
       opener: `Congrats on the recent launch! Companies in launch mode often need [solution] to capitalize on momentum...`,
@@ -1306,8 +1312,7 @@ function generateOutreachAngles(
   }
 
   // Expansion angles
-  if (signalTypes.has("Expansion")) {
-    const expansionSignal = signals.find(s => s.type === "Expansion");
+  if (hasSignalCategory("Expansion")) {
     angles.push({
       angle: "Market Expansion Support",
       opener: `Noticed you're expanding into new markets. Companies entering new regions often face [challenge] that we help solve...`,
@@ -1316,10 +1321,9 @@ function generateOutreachAngles(
     });
   }
 
-  // Tech stack angles
-  if (signalTypes.has("Tech Stack")) {
-    const techSignals = signals.filter(s => s.type === "Tech Stack");
-    if (techSignals.some(s => s.subtype === "LLM/AI" || s.subtype === "ML")) {
+  // Tech stack angles (check in raw signals since tech stack is extracted separately)
+  if (hasSignalCategory("Tech Stack")) {
+    if (hasSignalSubtype("LLM/AI") || hasSignalSubtype("ML")) {
       angles.push({
         angle: "AI/ML Infrastructure",
         opener: `Saw you're building with AI/ML. Teams investing in AI often struggle with [problem]. We've helped similar companies...`,
@@ -1341,7 +1345,7 @@ function generateOutreachAngles(
   }
 
   // Traction-based angles
-  if (signalTypes.has("Traction")) {
+  if (hasSignalCategory("Traction")) {
     angles.push({
       angle: "Scale Operations",
       opener: `Your growth metrics are impressive! Companies hitting your scale often need to upgrade [area] to maintain momentum...`,
@@ -1369,11 +1373,16 @@ function determineTargetPersonas(
   industry?: string
 ): EnhancedResearch["targetPersonas"] {
   const personas: EnhancedResearch["targetPersonas"] = [];
-  const signalTypes = new Set(signals.map(s => s.type));
-  const signalSubtypes = new Set(signals.map(s => `${s.type} - ${s.subtype || ""}`));
+
+  // Helper to check if any signal matches a category
+  const hasSignalCategory = (category: string) =>
+    signals.some(s => s.type.startsWith(category));
+
+  const hasSignalSubtype = (subtype: string) =>
+    signals.some(s => s.type.includes(subtype) || s.subtype === subtype);
 
   // Engineering/Tech signals
-  if (signalTypes.has("Tech Stack") || signalSubtypes.has("Hiring - Department Growth")) {
+  if (hasSignalCategory("Tech Stack") || hasSignalSubtype("Department Growth")) {
     personas.push({
       title: "VP of Engineering / CTO",
       reason: "Technical decision maker, controls engineering budget",
@@ -1385,7 +1394,7 @@ function determineTargetPersonas(
   }
 
   // Growth/Sales signals
-  if (signalTypes.has("Funding") || signalTypes.has("Expansion") || signalTypes.has("Traction")) {
+  if (hasSignalCategory("Funding") || hasSignalCategory("Expansion") || hasSignalCategory("Traction")) {
     personas.push({
       title: "VP of Sales / CRO",
       reason: "Growth mandate, budget for revenue tools",
@@ -1397,7 +1406,7 @@ function determineTargetPersonas(
   }
 
   // Hiring signals
-  if (signalTypes.has("Hiring")) {
+  if (hasSignalCategory("Hiring")) {
     personas.push({
       title: "VP of People / Head of HR",
       reason: "Owns hiring initiatives and people ops tools",
@@ -1405,7 +1414,7 @@ function determineTargetPersonas(
   }
 
   // Product signals
-  if (signalTypes.has("Product")) {
+  if (hasSignalCategory("Product")) {
     personas.push({
       title: "VP of Product / CPO",
       reason: "Product roadmap owner, evaluates supporting tools",
@@ -1570,31 +1579,31 @@ export async function quickEnrich(domain: string): Promise<EnhancedResearch> {
   // Categorize company
   const { companyType, stage, industry } = categorizeCompany(rawSignals, description);
 
-  // Extract tech stack
+  // Extract tech stack (signal types like "Tech Stack - AWS")
   const techStack = [...new Set(
     rawSignals
-      .filter(s => s.type === "Tech Stack")
+      .filter(s => s.type.startsWith("Tech Stack"))
       .map(s => s.subtype || s.content)
   )];
 
-  // Convert signals to enhanced format
+  // Convert signals to enhanced format (exclude tech stack signals)
   const signals = rawSignals
-    .filter(s => s.type !== "Tech Stack")
+    .filter(s => !s.type.startsWith("Tech Stack"))
     .map(s => ({
       type: s.type,
       content: s.content,
       source: s.source,
       confidence: s.confidence,
-      buyingIntent: determineBuyingIntent(s),
+      buyingIntent: s.buyingIntent || determineBuyingIntent(s),
     }));
 
-  // Infer pain points
+  // Infer pain points (use raw signals to include tech stack info)
   const painPoints = inferPainPoints(rawSignals, {});
 
-  // Generate outreach angles
+  // Generate outreach angles (use raw signals to include tech stack for AI/ML detection)
   const outreachAngles = generateOutreachAngles(rawSignals, painPoints, companyName);
 
-  // Determine target personas
+  // Determine target personas (use raw signals to include tech stack)
   const targetPersonas = determineTargetPersonas(rawSignals, industry);
 
   // Calculate urgency
@@ -1631,12 +1640,16 @@ function extractFirstParagraph(content: string): string {
   return lines[0]?.substring(0, 300) || "";
 }
 
-// Helper to determine buying intent from signal
+// Helper to determine buying intent from signal (fallback when not set by pattern)
 function determineBuyingIntent(signal: CompanyResearch["signals"][0]): "strong" | "moderate" | "weak" {
   const strongTypes = ["Funding", "M&A", "Expansion"];
   const moderateTypes = ["Hiring", "Product", "Partnership", "Traction"];
 
-  if (strongTypes.includes(signal.type)) return "strong";
-  if (moderateTypes.includes(signal.type)) return "moderate";
+  // Check if signal type STARTS WITH any of the strong/moderate categories
+  // Signal types are formatted as "Category - Subtype" (e.g., "Funding - Series A")
+  const baseType = signal.type.split(" - ")[0];
+
+  if (strongTypes.includes(baseType)) return "strong";
+  if (moderateTypes.includes(baseType)) return "moderate";
   return "weak";
 }
