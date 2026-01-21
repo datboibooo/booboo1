@@ -36,6 +36,7 @@ import { CompanyBrief } from "@/components/leads/company-brief";
 import { BuyerSimulation } from "@/components/simulation/buyer-simulation";
 import { KeyboardShortcutsHelp } from "@/components/ui/keyboard-shortcuts-help";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { ThinkingPanel } from "@/components/thinking/thinking-panel";
 
 // Type for leads that may have verification
 type LeadWithOptionalVerification = LeadRecord | VerifiedLead;
@@ -50,6 +51,7 @@ export default function DripFeedPage() {
   const [activeFilter, setActiveFilter] = React.useState<string>("all");
   const [focusedIndex, setFocusedIndex] = React.useState(0);
   const [showSimulation, setShowSimulation] = React.useState(false);
+  const [showThinkingPanel, setShowThinkingPanel] = React.useState(false);
   const [researchDomain, setResearchDomain] = React.useState<string | undefined>();
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
@@ -227,6 +229,15 @@ export default function DripFeedPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowThinkingPanel(true)}
+              className="h-9 gap-2"
+            >
+              <Sparkles className="h-4 w-4" />
+              AI Agent
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -421,6 +432,19 @@ export default function DripFeedPage() {
 
       {/* Keyboard Shortcuts Help */}
       <KeyboardShortcutsHelp open={showHelp} onOpenChange={setShowHelp} />
+
+      {/* AI Research Agent Panel */}
+      <ThinkingPanel
+        open={showThinkingPanel}
+        onOpenChange={setShowThinkingPanel}
+        onResultsFound={(candidates) => {
+          // Convert candidates to search results
+          if (candidates.length > 0) {
+            const query = candidates.map(c => c.companyName).join(", ");
+            loadData(query);
+          }
+        }}
+      />
 
       {/* Keyboard hint for first-time users */}
       {!isLoading && leads.length > 0 && !selectedLead && !showSimulation && (
