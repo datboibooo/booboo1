@@ -21,6 +21,7 @@ import {
   Code2,
   TrendingUp,
   Building2,
+  Flame,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -55,23 +56,41 @@ interface CompanyResearch {
   domain: string;
   companyName: string;
   description: string;
+  industry?: string;
+  companyType?: "startup" | "scaleup" | "enterprise" | "smb" | "unknown";
+  stage?: "early" | "growth" | "mature" | "unknown";
   signals: {
     type: string;
     content: string;
     source: string;
     confidence: "high" | "medium" | "low";
+    buyingIntent?: "strong" | "moderate" | "weak";
   }[];
+  painPoints: string[];
+  techStack: string[];
+  outreachAngles?: {
+    angle: string;
+    opener: string;
+    whyNow: string;
+    priority: "high" | "medium" | "low";
+  }[];
+  targetPersonas?: {
+    title: string;
+    reason: string;
+  }[];
+  bestTiming?: string;
+  urgencyScore?: number;
   recentNews: {
     title: string;
     snippet: string;
     url: string;
   }[];
-  teamInfo: {
+  teamInfo?: {
     size?: string;
     departments?: string[];
   };
-  techStack: string[];
-  painPoints: string[];
+  warning?: string;
+  error?: string;
 }
 
 type SimMode = "journey" | "message" | "research";
@@ -128,6 +147,7 @@ export function BuyerSimulation({ open, onClose, onSearchGenerated, initialDomai
 
   // Copy state
   const [copiedIndex, setCopiedIndex] = React.useState<number | null>(null);
+  const [copied, setCopied] = React.useState(false);
 
   // Fetch usage stats on mount
   React.useEffect(() => {
@@ -601,46 +621,148 @@ export function BuyerSimulation({ open, onClose, onSearchGenerated, initialDomai
                     animate={{ opacity: 1, y: 0 }}
                     className="space-y-4"
                   >
-                    {/* Company Overview */}
+                    {/* Company Overview with Urgency Score */}
                     <div className="p-4 rounded-xl bg-[--background-secondary] border border-[--border]">
-                      <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[--teal]/20 to-[--purple]/20 flex items-center justify-center text-lg font-bold text-[--teal]">
+                          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[--teal]/20 to-[--purple]/20 flex items-center justify-center text-xl font-bold text-[--teal]">
                             {researchResult.companyName.charAt(0)}
                           </div>
                           <div>
-                            <h3 className="font-semibold">{researchResult.companyName}</h3>
-                            <a
-                              href={`https://${researchResult.domain}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-[--foreground-muted] hover:text-[--teal] flex items-center gap-1"
-                            >
-                              {researchResult.domain}
-                              <ExternalLink className="h-3 w-3" />
-                            </a>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-semibold text-lg">{researchResult.companyName}</h3>
+                              {researchResult.companyType && researchResult.companyType !== "unknown" && (
+                                <span className={cn(
+                                  "px-2 py-0.5 text-[10px] rounded-full font-medium uppercase",
+                                  researchResult.companyType === "startup" ? "bg-[--teal]/10 text-[--teal]" :
+                                  researchResult.companyType === "scaleup" ? "bg-[--purple]/10 text-[--purple]" :
+                                  "bg-[--coral]/10 text-[--coral]"
+                                )}>
+                                  {researchResult.companyType}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <a
+                                href={`https://${researchResult.domain}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-[--foreground-muted] hover:text-[--teal] flex items-center gap-1"
+                              >
+                                {researchResult.domain}
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                              {researchResult.industry && (
+                                <>
+                                  <span className="text-[--foreground-subtle]">·</span>
+                                  <span className="text-xs text-[--foreground-muted]">{researchResult.industry}</span>
+                                </>
+                              )}
+                            </div>
                           </div>
                         </div>
-                        {researchResult.teamInfo?.size && (
-                          <div className="text-right">
-                            <p className="text-sm font-medium">{researchResult.teamInfo.size}</p>
-                            <p className="text-xs text-[--foreground-muted]">employees</p>
+                        {/* Urgency Score */}
+                        {researchResult.urgencyScore !== undefined && (
+                          <div className="text-center">
+                            <div className={cn(
+                              "w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold border-2",
+                              researchResult.urgencyScore >= 7 ? "border-[--coral] text-[--coral] bg-[--coral]/10" :
+                              researchResult.urgencyScore >= 4 ? "border-[--teal] text-[--teal] bg-[--teal]/10" :
+                              "border-[--foreground-subtle] text-[--foreground-muted] bg-[--background]"
+                            )}>
+                              {researchResult.urgencyScore}
+                            </div>
+                            <p className="text-[10px] text-[--foreground-muted] mt-1">Urgency</p>
                           </div>
                         )}
                       </div>
                       {researchResult.description && (
-                        <p className="text-sm text-[--foreground-muted]">
+                        <p className="text-sm text-[--foreground-muted] mt-2">
                           {researchResult.description}
                         </p>
                       )}
+                      {/* Best Timing */}
+                      {researchResult.bestTiming && (
+                        <div className="mt-3 p-2 rounded-lg bg-[--teal]/5 border border-[--teal]/20">
+                          <p className="text-xs text-[--teal] flex items-center gap-1.5">
+                            <Clock className="h-3.5 w-3.5" />
+                            <span className="font-medium">Best timing:</span> {researchResult.bestTiming}
+                          </p>
+                        </div>
+                      )}
                     </div>
 
-                    {/* Signals Found */}
+                    {/* Outreach Angles - THE MONEY SECTION */}
+                    {researchResult.outreachAngles && researchResult.outreachAngles.length > 0 && (
+                      <div className="p-4 rounded-xl bg-gradient-to-br from-[--teal]/5 to-[--purple]/5 border border-[--teal]/30">
+                        <h3 className="font-semibold mb-3 flex items-center gap-2 text-[--teal]">
+                          <MessageSquare className="h-4 w-4" />
+                          Ready-to-Use Outreach Angles
+                        </h3>
+                        <div className="space-y-3">
+                          {researchResult.outreachAngles.map((angle, i) => (
+                            <div
+                              key={i}
+                              className={cn(
+                                "p-3 rounded-lg border transition-all",
+                                angle.priority === "high" ? "bg-[--background] border-[--coral]/30" :
+                                angle.priority === "medium" ? "bg-[--background] border-[--teal]/30" :
+                                "bg-[--background] border-[--border]"
+                              )}
+                            >
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-medium flex items-center gap-2">
+                                  {angle.priority === "high" && <Flame className="h-3.5 w-3.5 text-[--coral]" />}
+                                  {angle.angle}
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(angle.opener);
+                                    setCopied(true);
+                                    setTimeout(() => setCopied(false), 2000);
+                                  }}
+                                  className="p-1.5 rounded-lg hover:bg-[--background-secondary] transition-colors"
+                                  title="Copy opener"
+                                >
+                                  {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5 text-[--foreground-subtle]" />}
+                                </button>
+                              </div>
+                              <p className="text-sm text-[--foreground-muted] italic mb-2">
+                                "{angle.opener}"
+                              </p>
+                              <p className="text-xs text-[--foreground-subtle]">
+                                <span className="font-medium text-[--foreground-muted]">Why now:</span> {angle.whyNow}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Target Personas */}
+                    {researchResult.targetPersonas && researchResult.targetPersonas.length > 0 && (
+                      <div className="p-4 rounded-xl bg-[--background-secondary] border border-[--border]">
+                        <h3 className="font-medium mb-3 flex items-center gap-2">
+                          <Users className="h-4 w-4 text-[--purple]" />
+                          Who to Contact
+                        </h3>
+                        <div className="grid gap-2">
+                          {researchResult.targetPersonas.map((persona, i) => (
+                            <div key={i} className="flex items-center justify-between p-2.5 rounded-lg bg-[--background]">
+                              <span className="text-sm font-medium">{persona.title}</span>
+                              <span className="text-xs text-[--foreground-muted]">{persona.reason}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Signals Found with Buying Intent */}
                     {researchResult.signals.length > 0 && (
                       <div className="p-4 rounded-xl bg-[--background-secondary] border border-[--border]">
                         <h3 className="font-medium mb-3 flex items-center gap-2">
                           <Zap className="h-4 w-4 text-[--coral]" />
-                          Signals Detected ({researchResult.signals.length})
+                          Buying Signals ({researchResult.signals.length})
                         </h3>
                         <div className="space-y-2">
                           {researchResult.signals.slice(0, 8).map((signal, i) => (
@@ -648,15 +770,15 @@ export function BuyerSimulation({ open, onClose, onSearchGenerated, initialDomai
                               key={i}
                               className={cn(
                                 "p-2.5 rounded-lg flex items-center justify-between",
-                                signal.confidence === "high" ? "bg-[--coral]/5" :
-                                signal.confidence === "medium" ? "bg-[--teal]/5" : "bg-[--background]"
+                                signal.buyingIntent === "strong" ? "bg-[--coral]/5" :
+                                signal.buyingIntent === "moderate" ? "bg-[--teal]/5" : "bg-[--background]"
                               )}
                             >
                               <div className="flex items-center gap-2">
                                 <div className={cn(
                                   "w-2 h-2 rounded-full",
-                                  signal.confidence === "high" ? "bg-[--coral]" :
-                                  signal.confidence === "medium" ? "bg-[--teal]" : "bg-[--foreground-subtle]"
+                                  signal.buyingIntent === "strong" ? "bg-[--coral]" :
+                                  signal.buyingIntent === "moderate" ? "bg-[--teal]" : "bg-[--foreground-subtle]"
                                 )} />
                                 <div>
                                   <span className="text-sm font-medium">{signal.type}</span>
@@ -665,27 +787,17 @@ export function BuyerSimulation({ open, onClose, onSearchGenerated, initialDomai
                                   </span>
                                 </div>
                               </div>
+                              {signal.buyingIntent && (
+                                <span className={cn(
+                                  "text-[10px] px-2 py-0.5 rounded-full",
+                                  signal.buyingIntent === "strong" ? "bg-[--coral]/20 text-[--coral]" :
+                                  signal.buyingIntent === "moderate" ? "bg-[--teal]/20 text-[--teal]" :
+                                  "bg-[--background-tertiary] text-[--foreground-subtle]"
+                                )}>
+                                  {signal.buyingIntent}
+                                </span>
+                              )}
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Tech Stack */}
-                    {researchResult.techStack.length > 0 && (
-                      <div className="p-4 rounded-xl bg-[--background-secondary] border border-[--border]">
-                        <h3 className="font-medium mb-3 flex items-center gap-2">
-                          <Code2 className="h-4 w-4 text-[--purple]" />
-                          Tech Stack
-                        </h3>
-                        <div className="flex flex-wrap gap-2">
-                          {researchResult.techStack.map((tech, i) => (
-                            <span
-                              key={i}
-                              className="px-3 py-1 text-sm rounded-full bg-[--purple]/10 text-[--purple]"
-                            >
-                              {tech}
-                            </span>
                           ))}
                         </div>
                       </div>
@@ -709,49 +821,32 @@ export function BuyerSimulation({ open, onClose, onSearchGenerated, initialDomai
                       </div>
                     )}
 
-                    {/* Recent News */}
-                    {researchResult.recentNews.length > 0 && (
+                    {/* Tech Stack */}
+                    {researchResult.techStack.length > 0 && (
                       <div className="p-4 rounded-xl bg-[--background-secondary] border border-[--border]">
                         <h3 className="font-medium mb-3 flex items-center gap-2">
-                          <TrendingUp className="h-4 w-4 text-[--teal]" />
-                          Recent Activity
+                          <Code2 className="h-4 w-4 text-[--purple]" />
+                          Tech Stack
                         </h3>
-                        <div className="space-y-3">
-                          {researchResult.recentNews.slice(0, 3).map((news, i) => (
-                            <a
+                        <div className="flex flex-wrap gap-2">
+                          {researchResult.techStack.map((tech, i) => (
+                            <span
                               key={i}
-                              href={news.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="block p-3 rounded-lg bg-[--background] hover:bg-[--background-tertiary] transition-colors"
+                              className="px-3 py-1 text-sm rounded-full bg-[--purple]/10 text-[--purple]"
                             >
-                              <p className="text-sm font-medium line-clamp-1">{news.title}</p>
-                              {news.snippet && (
-                                <p className="text-xs text-[--foreground-muted] mt-1 line-clamp-2">
-                                  {news.snippet}
-                                </p>
-                              )}
-                            </a>
+                              {tech}
+                            </span>
                           ))}
                         </div>
                       </div>
                     )}
 
-                    {/* Use for outreach */}
-                    <button
-                      onClick={() => {
-                        setMode("message");
-                        setCompanyContext(
-                          researchResult.signals.slice(0, 2).map(s => s.content).join(", ") ||
-                          researchResult.description?.slice(0, 100) ||
-                          researchResult.domain
-                        );
-                      }}
-                      className="w-full py-2.5 rounded-xl bg-[--teal]/10 text-[--teal] font-medium hover:bg-[--teal]/20 transition-colors flex items-center justify-center gap-2"
-                    >
-                      Use for Outreach Message
-                      <ArrowRight className="h-4 w-4" />
-                    </button>
+                    {/* Warning if using fallback */}
+                    {researchResult.warning && (
+                      <div className="p-3 rounded-lg bg-[--coral]/10 border border-[--coral]/30">
+                        <p className="text-xs text-[--coral]">{researchResult.warning}</p>
+                      </div>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>

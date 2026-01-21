@@ -193,9 +193,11 @@ export interface CompanyResearch {
   description: string;
   signals: {
     type: string;
+    subtype?: string;
     content: string;
     source: string;
     confidence: "high" | "medium" | "low";
+    buyingIntent?: "strong" | "moderate" | "weak";
   }[];
   recentNews: {
     title: string;
@@ -1194,52 +1196,447 @@ function inferPainPoints(
   return uniquePains.slice(0, 6); // Return top 6 most relevant
 }
 
-// Quick scrape for enrichment (single page, fast) - uses 1 credit
-export async function quickEnrich(domain: string): Promise<{
-  description?: string;
-  signals: string[];
+// ============= ENHANCED RESEARCH OUTPUT =============
+// Generates actionable insights and outreach angles
+
+export interface EnhancedResearch {
+  // Basic info
+  domain: string;
+  companyName: string;
+  description: string;
+
+  // Categorization
+  industry: string;
+  companyType: "startup" | "scaleup" | "enterprise" | "smb" | "unknown";
+  stage: "early" | "growth" | "mature" | "unknown";
+
+  // Signals & insights
+  signals: Array<{
+    type: string;
+    content: string;
+    source: string;
+    confidence: "high" | "medium" | "low";
+    buyingIntent: "strong" | "moderate" | "weak";
+  }>;
+  painPoints: string[];
   techStack: string[];
+
+  // Actionable outreach
+  outreachAngles: Array<{
+    angle: string;
+    opener: string;
+    whyNow: string;
+    priority: "high" | "medium" | "low";
+  }>;
+
+  // Recommended contacts
+  targetPersonas: Array<{
+    title: string;
+    reason: string;
+  }>;
+
+  // Timing
+  bestTiming: string;
+  urgencyScore: number; // 1-10
+
+  // Metadata
+  recentNews: Array<{ title: string; snippet: string; url: string }>;
   warning?: string;
   error?: string;
-  companyName?: string;
-}> {
-  const result = await scrapeUrl(`https://${domain}`);
+}
+
+// Generate outreach angles based on detected signals
+function generateOutreachAngles(
+  signals: CompanyResearch["signals"],
+  painPoints: string[],
+  companyName: string
+): EnhancedResearch["outreachAngles"] {
+  const angles: EnhancedResearch["outreachAngles"] = [];
+  const signalTypes = new Set(signals.map(s => s.type));
+  const signalSubtypes = new Set(signals.map(s => `${s.type} - ${s.subtype || ""}`));
+
+  // Funding-based angles
+  if (signalTypes.has("Funding")) {
+    const fundingSignal = signals.find(s => s.type === "Funding");
+    angles.push({
+      angle: "Post-Funding Growth",
+      opener: `Congrats on the recent funding! Companies at your stage often struggle with [problem]. We've helped similar companies like...`,
+      whyNow: `Fresh capital = budget to invest in growth infrastructure`,
+      priority: "high",
+    });
+  }
+
+  // Hiring-based angles
+  if (signalTypes.has("Hiring")) {
+    const hiringSignal = signals.find(s => s.type === "Hiring");
+    if (signalSubtypes.has("Hiring - Volume Hiring") || signalSubtypes.has("Hiring - Rapid Growth")) {
+      angles.push({
+        angle: "Scaling Team Challenges",
+        opener: `Saw you're rapidly growing the team. When companies double headcount, they often face [challenge]. We help by...`,
+        whyNow: `Rapid hiring = process/tooling pain points emerging`,
+        priority: "high",
+      });
+    }
+    if (signalSubtypes.has("Hiring - Executive Hire") || signalSubtypes.has("Hiring - Leadership Hire")) {
+      angles.push({
+        angle: "New Leadership Priorities",
+        opener: `Noticed you brought on new leadership. New executives often look to make quick wins in their first 90 days...`,
+        whyNow: `New leaders have budget authority and mandate to change things`,
+        priority: "high",
+      });
+    }
+    if (signalSubtypes.has("Hiring - Department Growth")) {
+      angles.push({
+        angle: "Department Build-Out",
+        opener: `Saw you're building out the team. Companies investing in this area typically need [solution] to scale effectively...`,
+        whyNow: `Active investment in capability = receptive to supporting tools`,
+        priority: "medium",
+      });
+    }
+  }
+
+  // Product launch angles
+  if (signalTypes.has("Product")) {
+    angles.push({
+      angle: "Post-Launch Momentum",
+      opener: `Congrats on the recent launch! Companies in launch mode often need [solution] to capitalize on momentum...`,
+      whyNow: `Launch = high visibility period, receptive to growth tools`,
+      priority: "medium",
+    });
+  }
+
+  // Expansion angles
+  if (signalTypes.has("Expansion")) {
+    const expansionSignal = signals.find(s => s.type === "Expansion");
+    angles.push({
+      angle: "Market Expansion Support",
+      opener: `Noticed you're expanding into new markets. Companies entering new regions often face [challenge] that we help solve...`,
+      whyNow: `Expansion = new budgets and urgency to execute`,
+      priority: "high",
+    });
+  }
+
+  // Tech stack angles
+  if (signalTypes.has("Tech Stack")) {
+    const techSignals = signals.filter(s => s.type === "Tech Stack");
+    if (techSignals.some(s => s.subtype === "LLM/AI" || s.subtype === "ML")) {
+      angles.push({
+        angle: "AI/ML Infrastructure",
+        opener: `Saw you're building with AI/ML. Teams investing in AI often struggle with [problem]. We've helped similar companies...`,
+        whyNow: `AI adoption = complex infrastructure needs`,
+        priority: "medium",
+      });
+    }
+  }
+
+  // Pain point-based angles
+  if (painPoints.length > 0) {
+    const topPain = painPoints[0];
+    angles.push({
+      angle: "Address Core Challenge",
+      opener: `Companies at your stage typically struggle with "${topPain.toLowerCase()}". We've seen this pattern and built a solution that...`,
+      whyNow: `This pain point likely exists based on company signals`,
+      priority: "medium",
+    });
+  }
+
+  // Traction-based angles
+  if (signalTypes.has("Traction")) {
+    angles.push({
+      angle: "Scale Operations",
+      opener: `Your growth metrics are impressive! Companies hitting your scale often need to upgrade [area] to maintain momentum...`,
+      whyNow: `Proven traction = budget and urgency to optimize`,
+      priority: "medium",
+    });
+  }
+
+  // Default angle if none matched
+  if (angles.length === 0) {
+    angles.push({
+      angle: "Industry Relevance",
+      opener: `${companyName} seems like a great fit for what we're building. Companies in your space typically face [challenge]...`,
+      whyNow: `General industry fit`,
+      priority: "low",
+    });
+  }
+
+  return angles.slice(0, 4); // Top 4 angles
+}
+
+// Determine target personas based on signals
+function determineTargetPersonas(
+  signals: CompanyResearch["signals"],
+  industry?: string
+): EnhancedResearch["targetPersonas"] {
+  const personas: EnhancedResearch["targetPersonas"] = [];
+  const signalTypes = new Set(signals.map(s => s.type));
+  const signalSubtypes = new Set(signals.map(s => `${s.type} - ${s.subtype || ""}`));
+
+  // Engineering/Tech signals
+  if (signalTypes.has("Tech Stack") || signalSubtypes.has("Hiring - Department Growth")) {
+    personas.push({
+      title: "VP of Engineering / CTO",
+      reason: "Technical decision maker, controls engineering budget",
+    });
+    personas.push({
+      title: "Engineering Manager",
+      reason: "Day-to-day tooling decisions, strong influence on adoption",
+    });
+  }
+
+  // Growth/Sales signals
+  if (signalTypes.has("Funding") || signalTypes.has("Expansion") || signalTypes.has("Traction")) {
+    personas.push({
+      title: "VP of Sales / CRO",
+      reason: "Growth mandate, budget for revenue tools",
+    });
+    personas.push({
+      title: "Head of Growth",
+      reason: "Owns growth initiatives, experimental with new tools",
+    });
+  }
+
+  // Hiring signals
+  if (signalTypes.has("Hiring")) {
+    personas.push({
+      title: "VP of People / Head of HR",
+      reason: "Owns hiring initiatives and people ops tools",
+    });
+  }
+
+  // Product signals
+  if (signalTypes.has("Product")) {
+    personas.push({
+      title: "VP of Product / CPO",
+      reason: "Product roadmap owner, evaluates supporting tools",
+    });
+  }
+
+  // Default
+  if (personas.length === 0) {
+    personas.push({
+      title: "CEO / Founder",
+      reason: "Early-stage decision maker for all major purchases",
+    });
+    personas.push({
+      title: "Head of Operations",
+      reason: "Operational efficiency and tooling decisions",
+    });
+  }
+
+  return personas.slice(0, 3);
+}
+
+// Determine company stage and type
+function categorizeCompany(
+  signals: CompanyResearch["signals"],
+  description: string
+): { companyType: EnhancedResearch["companyType"]; stage: EnhancedResearch["stage"]; industry: string } {
+  const signalTypes = new Set(signals.map(s => s.type));
+  const signalSubtypes = signals.map(s => `${s.type} - ${s.subtype || ""}`).join(" ");
+  const industrySignals = signals.filter(s => s.type === "Industry");
+
+  // Determine industry
+  let industry = "Technology";
+  if (industrySignals.length > 0) {
+    industry = industrySignals[0].subtype || "Technology";
+  }
+
+  // Determine stage
+  let stage: EnhancedResearch["stage"] = "unknown";
+  if (signalSubtypes.includes("Seed") || signalSubtypes.includes("Pre-Seed")) {
+    stage = "early";
+  } else if (signalSubtypes.includes("Series A") || signalSubtypes.includes("Series B")) {
+    stage = "growth";
+  } else if (signalSubtypes.includes("Series C") || signalSubtypes.includes("Series D") || signalSubtypes.includes("IPO")) {
+    stage = "mature";
+  } else if (signalTypes.has("Funding")) {
+    stage = "growth";
+  }
+
+  // Determine company type
+  let companyType: EnhancedResearch["companyType"] = "unknown";
+  if (stage === "early") {
+    companyType = "startup";
+  } else if (stage === "growth") {
+    companyType = "scaleup";
+  } else if (stage === "mature" || signalSubtypes.includes("Enterprise")) {
+    companyType = "enterprise";
+  } else if (signalTypes.has("Traction")) {
+    companyType = "scaleup";
+  }
+
+  return { companyType, stage, industry };
+}
+
+// Calculate urgency score
+function calculateUrgencyScore(signals: CompanyResearch["signals"]): number {
+  let score = 3; // Base score
+
+  for (const signal of signals) {
+    if (signal.buyingIntent === "strong") score += 2;
+    else if (signal.buyingIntent === "moderate") score += 1;
+
+    // Bonus for high-confidence signals
+    if (signal.confidence === "high") score += 0.5;
+  }
+
+  // Cap at 10
+  return Math.min(Math.round(score), 10);
+}
+
+// Determine best timing
+function determineBestTiming(signals: CompanyResearch["signals"]): string {
+  const signalSubtypes = signals.map(s => `${s.type} - ${s.subtype || ""}`).join(" ");
+
+  if (signalSubtypes.includes("Funding")) {
+    return "Reach out within 2-4 weeks of funding announcement";
+  }
+  if (signalSubtypes.includes("Executive Hire") || signalSubtypes.includes("Leadership Hire")) {
+    return "Contact within first 90 days of new leadership";
+  }
+  if (signalSubtypes.includes("Launch") || signalSubtypes.includes("GA Release")) {
+    return "Reach out during post-launch momentum (1-2 weeks)";
+  }
+  if (signalSubtypes.includes("Expansion")) {
+    return "Contact during expansion planning phase";
+  }
+  if (signalSubtypes.includes("Volume Hiring")) {
+    return "Reach out early in hiring ramp";
+  }
+
+  return "No specific timing trigger - reach out anytime";
+}
+
+// Quick scrape for enrichment (single page, fast) - uses 1 credit
+// Now returns EnhancedResearch with actionable insights
+export async function quickEnrich(domain: string): Promise<EnhancedResearch> {
+  const cleanDomain = domain.replace(/^https?:\/\//, "").replace(/^www\./, "");
+  const result = await scrapeUrl(`https://${cleanDomain}`);
+
+  // Base response structure
+  const baseResponse: EnhancedResearch = {
+    domain: cleanDomain,
+    companyName: cleanDomain.split(".")[0].charAt(0).toUpperCase() + cleanDomain.split(".")[0].slice(1),
+    description: "",
+    industry: "Technology",
+    companyType: "unknown",
+    stage: "unknown",
+    signals: [],
+    painPoints: [],
+    techStack: [],
+    outreachAngles: [],
+    targetPersonas: [],
+    bestTiming: "No specific timing trigger",
+    urgencyScore: 3,
+    recentNews: [],
+  };
 
   if (!result.success) {
     return {
-      signals: [],
-      techStack: [],
+      ...baseResponse,
       error: result.error || "Failed to fetch website",
-      warning: "Could not reach website. Check if the domain is correct."
+      warning: "Could not reach website. Check if the domain is correct.",
+      outreachAngles: [{
+        angle: "Cold Outreach",
+        opener: `Hi! I noticed ${baseResponse.companyName} and thought you might be interested in...`,
+        whyNow: "General outreach - no specific trigger found",
+        priority: "low",
+      }],
+      targetPersonas: [{ title: "CEO / Founder", reason: "Default decision maker" }],
     };
   }
 
   if (!result.data?.markdown) {
     return {
-      signals: [],
-      techStack: [],
-      warning: "No content found on website."
+      ...baseResponse,
+      warning: "No content found on website.",
     };
   }
 
   const content = result.data.markdown;
-  const signals = extractSignals(content, domain);
+  const rawSignals = extractSignals(content, cleanDomain);
 
   // Extract company name from title or og:title
-  const companyName = result.data.metadata?.ogTitle ||
+  const companyName = result.data.metadata?.ogTitle?.split(/[|\-–—]/)[0]?.trim() ||
                       result.data.metadata?.title?.split(/[|\-–—]/)[0]?.trim() ||
-                      domain.split(".")[0].charAt(0).toUpperCase() + domain.split(".")[0].slice(1);
+                      baseResponse.companyName;
 
   // Get description from metadata
   const description = result.data.metadata?.ogDescription ||
                       result.data.metadata?.description ||
-                      content.substring(0, 200).replace(/\n/g, " ").trim();
+                      extractFirstParagraph(content);
+
+  // Categorize company
+  const { companyType, stage, industry } = categorizeCompany(rawSignals, description);
+
+  // Extract tech stack
+  const techStack = [...new Set(
+    rawSignals
+      .filter(s => s.type === "Tech Stack")
+      .map(s => s.subtype || s.content)
+  )];
+
+  // Convert signals to enhanced format
+  const signals = rawSignals
+    .filter(s => s.type !== "Tech Stack")
+    .map(s => ({
+      type: s.type,
+      content: s.content,
+      source: s.source,
+      confidence: s.confidence,
+      buyingIntent: determineBuyingIntent(s),
+    }));
+
+  // Infer pain points
+  const painPoints = inferPainPoints(rawSignals, {});
+
+  // Generate outreach angles
+  const outreachAngles = generateOutreachAngles(rawSignals, painPoints, companyName);
+
+  // Determine target personas
+  const targetPersonas = determineTargetPersonas(rawSignals, industry);
+
+  // Calculate urgency
+  const urgencyScore = calculateUrgencyScore(rawSignals);
+
+  // Determine timing
+  const bestTiming = determineBestTiming(rawSignals);
 
   return {
+    domain: cleanDomain,
     companyName,
     description,
-    signals: signals.map((s) => `${s.type}: ${s.content}`),
-    techStack: signals.filter((s) => s.type === "Tech Stack").map((s) => s.content),
+    industry,
+    companyType,
+    stage,
+    signals,
+    painPoints,
+    techStack,
+    outreachAngles,
+    targetPersonas,
+    bestTiming,
+    urgencyScore,
+    recentNews: [],
     warning: result.warning,
   };
+}
+
+// Helper to extract first meaningful paragraph from content
+function extractFirstParagraph(content: string): string {
+  const lines = content.split("\n").filter(line => {
+    const trimmed = line.trim();
+    return trimmed.length > 50 && !trimmed.startsWith("#") && !trimmed.startsWith("-");
+  });
+  return lines[0]?.substring(0, 300) || "";
+}
+
+// Helper to determine buying intent from signal
+function determineBuyingIntent(signal: CompanyResearch["signals"][0]): "strong" | "moderate" | "weak" {
+  const strongTypes = ["Funding", "M&A", "Expansion"];
+  const moderateTypes = ["Hiring", "Product", "Partnership", "Traction"];
+
+  if (strongTypes.includes(signal.type)) return "strong";
+  if (moderateTypes.includes(signal.type)) return "moderate";
+  return "weak";
 }
