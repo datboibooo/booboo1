@@ -184,21 +184,27 @@ export default function DripFeedPage() {
     onCopyOpener: () => {
       if (focusedLead) handleCopyOpener(focusedLead);
     },
-    onRefresh: () => loadData(),
+    onRefresh: () => searchQuery && loadData(searchQuery),
     onExport: () => handleExport(),
     onSearch: () => searchInputRef.current?.focus(),
     enabled: !selectedLead && !showSimulation,
   });
 
-  // Load data
+  // Load data - only when user explicitly searches
   const loadData = React.useCallback(async (query?: string) => {
+    // Don't load if no query provided (user must search first)
+    if (!query) {
+      setIsLoading(false);
+      return;
+    }
+
     setIsRefreshing(true);
     try {
       const response = await fetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          query: query || "",
+          query: query,
           limit: 20,
           hotLeadsOnly: query === "hot",
         }),
@@ -222,6 +228,8 @@ export default function DripFeedPage() {
           })) || [],
         }));
         setLeads(transformedLeads);
+      } else {
+        setLeads([]);
       }
     } catch (error) {
       console.error("Failed to load data:", error);
@@ -231,9 +239,10 @@ export default function DripFeedPage() {
     }
   }, []);
 
+  // Don't auto-load on mount - wait for user to search
   React.useEffect(() => {
-    loadData();
-  }, [loadData]);
+    setIsLoading(false);
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -302,9 +311,10 @@ export default function DripFeedPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => loadData()}
-              disabled={isRefreshing}
+              onClick={() => searchQuery ? loadData(searchQuery) : null}
+              disabled={isRefreshing || !searchQuery}
               className="h-9 gap-2"
+              title={searchQuery ? "Refresh current search" : "Search first to enable refresh"}
             >
               {isRefreshing ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -429,17 +439,30 @@ export default function DripFeedPage() {
             </div>
           ) : filteredLeads.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
-              <div className="h-16 w-16 rounded-2xl bg-[--background-secondary] flex items-center justify-center mb-4">
-                <Filter className="h-7 w-7 text-[--foreground-subtle]" />
+              <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-[--teal]/20 to-[--purple]/20 flex items-center justify-center mb-4">
+                <Search className="h-7 w-7 text-[--teal]" />
               </div>
-              <h3 className="font-semibold text-lg mb-1">No businesses found</h3>
-              <p className="text-sm text-[--foreground-muted] mb-4">
-                Try a different search or clear filters
+              <h3 className="font-semibold text-lg mb-1">Search for businesses</h3>
+              <p className="text-sm text-[--foreground-muted] mb-6 max-w-md">
+                Search for Florida home service businesses by category, city, or region. Try "kitchen miami" or "roofing tampa"
               </p>
-              <Button onClick={() => { setActiveFilter("all"); loadData(); }} className="btn-fluid">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Load All Businesses
-              </Button>
+              <div className="flex flex-wrap gap-2 justify-center max-w-lg">
+                {QUICK_SEARCHES.map((qs) => (
+                  <Button
+                    key={qs.label}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSearchQuery(qs.query);
+                      loadData(qs.query);
+                    }}
+                    className="gap-2"
+                  >
+                    <qs.icon className="h-3.5 w-3.5" />
+                    {qs.label}
+                  </Button>
+                ))}
+              </div>
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
