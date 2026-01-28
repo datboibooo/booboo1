@@ -19,6 +19,7 @@ export { PublicRecords } from './sources/public-records';
 export { RelativesAssociates } from './sources/relatives-associates';
 export { EmploymentHistory } from './sources/employment-history';
 export { AddressHistory } from './sources/address-history';
+export { DataValidation } from './sources/validation';
 
 // Convenience exports
 export { SkipTraceEngine, SkipTraceEngine as default } from './engine';
