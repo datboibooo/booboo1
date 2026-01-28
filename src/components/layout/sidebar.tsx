@@ -11,6 +11,7 @@ import {
   LogOut,
   User,
   Bookmark,
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/supabase/auth-context";
@@ -21,6 +22,7 @@ interface SidebarProps {
 }
 
 const navItems = [
+  { title: "SkipTrace", href: "/skiptrace", icon: Search },
   { title: "Leads", href: "/drip", icon: Zap },
   { title: "Saved", href: "/saved", icon: Bookmark },
   { title: "Analytics", href: "/analytics", icon: BarChart3 },
