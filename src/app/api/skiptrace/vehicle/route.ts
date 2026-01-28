@@ -1,58 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { VehicleRecords, SkipTraceEngine } from '@/lib/skiptrace';
+import { AISearch } from '@/lib/skiptrace/ai-search';
 
 export const runtime = 'nodejs';
-export const maxDuration = 30;
+export const maxDuration = 60;
+
+// Basic VIN validation
+function isValidVIN(vin: string): boolean {
+  if (!vin || vin.length !== 17) return false;
+  // VIN cannot contain I, O, or Q
+  return !/[IOQ]/i.test(vin);
+}
 
 export async function GET(request: NextRequest) {
   const vin = request.nextUrl.searchParams.get('vin');
-  const ownerName = request.nextUrl.searchParams.get('owner');
-  const state = request.nextUrl.searchParams.get('state') || undefined;
 
-  if (!vin && !ownerName) {
+  if (!vin) {
     return NextResponse.json(
-      { error: 'Either vin or owner parameter is required' },
+      { error: 'vin parameter is required' },
+      { status: 400 }
+    );
+  }
+
+  if (!isValidVIN(vin)) {
+    return NextResponse.json(
+      { error: 'Invalid VIN format. VIN must be 17 characters and cannot contain I, O, or Q.' },
       { status: 400 }
     );
   }
 
   try {
-    if (vin) {
-      // Validate VIN
-      if (!VehicleRecords.isValidVIN(vin)) {
-        return NextResponse.json(
-          { error: 'Invalid VIN format. VIN must be 17 characters and cannot contain I, O, or Q.' },
-          { status: 400 }
-        );
-      }
+    const result = await AISearch.lookupVIN(vin);
 
-      // Full VIN lookup
-      const result = await SkipTraceEngine.lookupVIN(vin);
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          vin,
-          vinParsed: VehicleRecords.parseVIN(vin),
-          decoded: result.decoded,
-          recalls: result.recalls,
-          complaints: result.complaints,
-        },
-      });
-    }
-
-    if (ownerName) {
-      const result = await VehicleRecords.searchByOwner(ownerName, state);
-      return NextResponse.json({
-        success: true,
-        data: {
-          owner: ownerName,
-          state,
-          vehicles: result.vehicles,
-          searchUrls: result.searchUrls,
-        },
-      });
-    }
+    return NextResponse.json({
+      success: true,
+      data: result,
+      source: 'AI: Vercel AI SDK with OpenAI/Anthropic support',
+    });
   } catch (error) {
     console.error('Vehicle lookup error:', error);
     return NextResponse.json(
@@ -65,60 +48,29 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { vin, ownerName, state, licensePlate } = body;
+    const { vin } = body;
 
-    if (vin) {
-      if (!VehicleRecords.isValidVIN(vin)) {
-        return NextResponse.json(
-          { error: 'Invalid VIN format' },
-          { status: 400 }
-        );
-      }
-
-      const result = await SkipTraceEngine.lookupVIN(vin);
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          vin,
-          vinParsed: VehicleRecords.parseVIN(vin),
-          decoded: result.decoded,
-          recalls: result.recalls,
-          complaints: result.complaints,
-        },
-      });
+    if (!vin) {
+      return NextResponse.json(
+        { error: 'vin is required' },
+        { status: 400 }
+      );
     }
 
-    if (licensePlate && state) {
-      const lookupUrls = VehicleRecords.getLicensePlateLookup(licensePlate, state);
-      return NextResponse.json({
-        success: true,
-        data: {
-          licensePlate,
-          state,
-          searchUrls: lookupUrls,
-          dmvInfo: VehicleRecords.getDMVInfo(state),
-        },
-      });
+    if (!isValidVIN(vin)) {
+      return NextResponse.json(
+        { error: 'Invalid VIN format. VIN must be 17 characters and cannot contain I, O, or Q.' },
+        { status: 400 }
+      );
     }
 
-    if (ownerName) {
-      const result = await VehicleRecords.searchByOwner(ownerName, state);
-      return NextResponse.json({
-        success: true,
-        data: {
-          owner: ownerName,
-          state,
-          vehicles: result.vehicles,
-          searchUrls: result.searchUrls,
-        },
-      });
-    }
+    const result = await AISearch.lookupVIN(vin);
 
-    return NextResponse.json(
-      { error: 'At least one search parameter is required (vin, licensePlate, or ownerName)' },
-      { status: 400 }
-    );
+    return NextResponse.json({
+      success: true,
+      data: result,
+      source: 'AI: Vercel AI SDK with OpenAI/Anthropic support',
+    });
   } catch (error) {
     console.error('Vehicle lookup error:', error);
     return NextResponse.json(

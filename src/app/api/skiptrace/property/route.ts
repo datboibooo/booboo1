@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PropertyRecords, SkipTraceEngine } from '@/lib/skiptrace';
+import { AISearch } from '@/lib/skiptrace/ai-search';
 
 export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
   const address = request.nextUrl.searchParams.get('address') || undefined;
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const result = await SkipTraceEngine.searchProperty({
+    const result = await AISearch.searchProperty({
       address,
       city,
       state,
@@ -30,11 +31,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: {
-        properties: result.properties,
-        searchLinks: result.searchLinks,
-        sources: result.sources,
-      },
+      data: result,
+      source: 'AI: Vercel AI SDK with OpenAI/Anthropic support',
     });
   } catch (error) {
     console.error('Property search error:', error);
@@ -50,20 +48,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { address, city, state, county, ownerName, parcelId } = body;
 
-    // Florida-specific property data
-    if (state === 'FL' && county) {
-      const floridaData = await PropertyRecords.getFloridaData(county, parcelId, address);
-      return NextResponse.json({
-        success: true,
-        data: {
-          state: 'FL',
-          county,
-          ...floridaData,
-        },
-      });
+    if (!address && !ownerName && !parcelId) {
+      return NextResponse.json(
+        { error: 'At least one search parameter is required (address, ownerName, or parcelId)' },
+        { status: 400 }
+      );
     }
 
-    const result = await SkipTraceEngine.searchProperty({
+    const result = await AISearch.searchProperty({
       address,
       city,
       state,
@@ -72,17 +64,10 @@ export async function POST(request: NextRequest) {
       parcelId,
     });
 
-    // Add assessor website info
-    const assessorSites = state ? PropertyRecords.assessorWebsites[state] : {};
-
     return NextResponse.json({
       success: true,
-      data: {
-        properties: result.properties,
-        searchLinks: result.searchLinks,
-        sources: result.sources,
-        assessorWebsites: assessorSites,
-      },
+      data: result,
+      source: 'AI: Vercel AI SDK with OpenAI/Anthropic support',
     });
   } catch (error) {
     console.error('Property search error:', error);

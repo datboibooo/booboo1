@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PhoneEmail } from '@/lib/skiptrace';
+import { AISearch } from '@/lib/skiptrace/ai-search';
 
 export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
   const phone = request.nextUrl.searchParams.get('phone');
@@ -14,23 +15,12 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const result = await PhoneEmail.reversePhone(phone);
-
-    // Get carrier info
-    const carrierInfo = await PhoneEmail.lookupCarrier(phone);
-
-    // Check DNC status
-    const dncStatus = await PhoneEmail.checkDoNotCall(phone);
+    const result = await AISearch.lookupPhone(phone);
 
     return NextResponse.json({
       success: true,
-      data: {
-        parsed: result.parsed,
-        location: result.location,
-        carrier: carrierInfo,
-        doNotCall: dncStatus,
-        searchUrls: result.searchUrls,
-      },
+      data: result,
+      source: 'AI: Vercel AI SDK with OpenAI/Anthropic support',
     });
   } catch (error) {
     console.error('Phone lookup error:', error);
@@ -53,19 +43,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await PhoneEmail.reversePhone(phone);
-    const carrierInfo = await PhoneEmail.lookupCarrier(phone);
-    const dncStatus = await PhoneEmail.checkDoNotCall(phone);
+    const result = await AISearch.lookupPhone(phone);
 
     return NextResponse.json({
       success: true,
-      data: {
-        parsed: result.parsed,
-        location: result.location,
-        carrier: carrierInfo,
-        doNotCall: dncStatus,
-        searchUrls: result.searchUrls,
-      },
+      data: result,
+      source: 'AI: Vercel AI SDK with OpenAI/Anthropic support',
     });
   } catch (error) {
     console.error('Phone lookup error:', error);

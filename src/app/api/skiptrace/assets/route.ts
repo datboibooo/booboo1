@@ -1,48 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AssetsWealth } from '@/lib/skiptrace';
+import { AISearch } from '@/lib/skiptrace/ai-search';
 
 export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
   const name = request.nextUrl.searchParams.get('name');
-  const company = request.nextUrl.searchParams.get('company');
-  const type = request.nextUrl.searchParams.get('type') || 'all';
+  const state = request.nextUrl.searchParams.get('state') || undefined;
 
-  if (!name && !company) {
+  if (!name) {
     return NextResponse.json(
-      { error: 'name or company parameter is required' },
+      { error: 'name parameter is required' },
       { status: 400 }
     );
   }
 
+  // Parse name
+  const parts = name.split(' ');
+  const first = parts[0];
+  const last = parts.slice(1).join(' ') || parts[0];
+
   try {
-    const results: {
-      aircraftSearch?: Awaited<ReturnType<typeof AssetsWealth.searchAircraftByOwner>>;
-      vesselSearch?: Awaited<ReturnType<typeof AssetsWealth.searchVesselByOwner>>;
-      wealthSearchUrls?: ReturnType<typeof AssetsWealth.getWealthSearchUrls>;
-      businessSearchUrls?: ReturnType<typeof AssetsWealth.getBusinessWealthUrls>;
-    } = {};
-
-    if (name) {
-      if (type === 'all' || type === 'aircraft') {
-        results.aircraftSearch = await AssetsWealth.searchAircraftByOwner(name);
-      }
-
-      if (type === 'all' || type === 'vessel') {
-        results.vesselSearch = await AssetsWealth.searchVesselByOwner(name);
-      }
-
-      results.wealthSearchUrls = AssetsWealth.getWealthSearchUrls(name);
-    }
-
-    if (company) {
-      results.businessSearchUrls = AssetsWealth.getBusinessWealthUrls(company);
-    }
+    const result = await AISearch.searchAssets(first, last, state);
 
     return NextResponse.json({
       success: true,
-      data: results,
-      wealthIndicators: AssetsWealth.wealthIndicators,
+      data: result,
+      source: 'AI: Vercel AI SDK with OpenAI/Anthropic support',
     });
   } catch (error) {
     console.error('Assets search error:', error);
@@ -56,75 +40,31 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, company, nNumber, vesselName, searchType } = body;
+    const { firstName, lastName, name, state } = body;
 
-    switch (searchType) {
-      case 'aircraft':
-        if (nNumber) {
-          const result = await AssetsWealth.searchAircraftByNNumber(nNumber);
-          return NextResponse.json({
-            success: true,
-            data: { type: 'aircraft', ...result },
-          });
-        }
-        if (name) {
-          const result = await AssetsWealth.searchAircraftByOwner(name);
-          return NextResponse.json({
-            success: true,
-            data: { type: 'aircraft', ...result },
-          });
-        }
-        break;
-
-      case 'vessel':
-        if (vesselName) {
-          const result = await AssetsWealth.searchVesselByName(vesselName);
-          return NextResponse.json({
-            success: true,
-            data: { type: 'vessel', ...result },
-          });
-        }
-        if (name) {
-          const result = await AssetsWealth.searchVesselByOwner(name);
-          return NextResponse.json({
-            success: true,
-            data: { type: 'vessel', ...result },
-          });
-        }
-        break;
-
-      default:
-        // Comprehensive wealth search
-        if (!name && !company) {
-          return NextResponse.json(
-            { error: 'name or company is required' },
-            { status: 400 }
-          );
-        }
-
-        const results: Record<string, unknown> = {};
-
-        if (name) {
-          results.aircraftSearch = await AssetsWealth.searchAircraftByOwner(name);
-          results.vesselSearch = await AssetsWealth.searchVesselByOwner(name);
-          results.wealthSearchUrls = AssetsWealth.getWealthSearchUrls(name);
-        }
-
-        if (company) {
-          results.businessSearchUrls = AssetsWealth.getBusinessWealthUrls(company);
-        }
-
-        return NextResponse.json({
-          success: true,
-          data: results,
-          wealthIndicators: AssetsWealth.wealthIndicators,
-        });
+    // Parse name
+    let first = firstName;
+    let last = lastName;
+    if (name && !firstName && !lastName) {
+      const parts = name.split(' ');
+      first = parts[0];
+      last = parts.slice(1).join(' ') || parts[0];
     }
 
-    return NextResponse.json(
-      { error: 'Invalid request parameters' },
-      { status: 400 }
-    );
+    if (!first || !last) {
+      return NextResponse.json(
+        { error: 'name or firstName and lastName is required' },
+        { status: 400 }
+      );
+    }
+
+    const result = await AISearch.searchAssets(first, last, state);
+
+    return NextResponse.json({
+      success: true,
+      data: result,
+      source: 'AI: Vercel AI SDK with OpenAI/Anthropic support',
+    });
   } catch (error) {
     console.error('Assets search error:', error);
     return NextResponse.json(

@@ -3,6 +3,7 @@
 
 export * from './types';
 export * from './engine';
+export * from './ai-search';
 
 // Re-export source modules
 export { SECEdgar } from './sources/sec-edgar';

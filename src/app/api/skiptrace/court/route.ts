@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { CourtRecords, SkipTraceEngine } from '@/lib/skiptrace';
+import { AISearch } from '@/lib/skiptrace/ai-search';
 
 export const runtime = 'nodejs';
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
   const name = request.nextUrl.searchParams.get('name');
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const result = await SkipTraceEngine.searchCourt({
+    const result = await AISearch.searchCourt({
       name: name || undefined,
       caseNumber: caseNumber || undefined,
       state,
@@ -27,11 +27,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: {
-        records: result.records,
-        searchLinks: result.searchLinks,
-        sources: result.sources,
-      },
+      data: result,
+      source: 'AI: Vercel AI SDK with OpenAI/Anthropic support',
     });
   } catch (error) {
     console.error('Court search error:', error);
@@ -45,47 +42,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, caseNumber, state, courtType, searchType } = body;
+    const { name, caseNumber, state, courtType } = body;
 
-    // Handle specific search types
-    if (searchType === 'bankruptcy') {
-      const result = await CourtRecords.searchBankruptcy(name, state);
-      return NextResponse.json({
-        success: true,
-        data: {
-          type: 'bankruptcy',
-          records: result.records,
-          searchUrls: result.searchUrls,
-        },
-      });
-    }
-
-    if (searchType === 'liens') {
-      const result = await CourtRecords.searchLiensJudgments(name, state);
-      return NextResponse.json({
-        success: true,
-        data: {
-          type: 'liens_judgments',
-          liens: result.liens,
-          judgments: result.judgments,
-          searchUrls: result.searchUrls,
-        },
-      });
-    }
-
-    if (searchType === 'ucc') {
-      const result = await CourtRecords.searchUCC(name, state);
-      return NextResponse.json({
-        success: true,
-        data: {
-          type: 'ucc',
-          filings: result.filings,
-          searchUrls: result.searchUrls,
-        },
-      });
-    }
-
-    // General court search
     if (!name && !caseNumber) {
       return NextResponse.json(
         { error: 'Either name or caseNumber is required' },
@@ -93,7 +51,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await SkipTraceEngine.searchCourt({
+    const result = await AISearch.searchCourt({
       name,
       caseNumber,
       state,
@@ -102,11 +60,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: {
-        records: result.records,
-        searchLinks: result.searchLinks,
-        sources: result.sources,
-      },
+      data: result,
+      source: 'AI: Vercel AI SDK with OpenAI/Anthropic support',
     });
   } catch (error) {
     console.error('Court search error:', error);

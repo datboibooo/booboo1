@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { EmploymentHistory } from '@/lib/skiptrace';
+import { AISearch } from '@/lib/skiptrace/ai-search';
 
 export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
   const firstName = request.nextUrl.searchParams.get('firstName');
   const lastName = request.nextUrl.searchParams.get('lastName');
   const name = request.nextUrl.searchParams.get('name');
-  const company = request.nextUrl.searchParams.get('company') || undefined;
+  const state = request.nextUrl.searchParams.get('state') || undefined;
 
   // Parse name
   let first = firstName;
@@ -26,13 +27,12 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const result = await EmploymentHistory.search(first, last, {
-      currentCompany: company,
-    });
+    const result = await AISearch.searchEmployment(first, last, state);
 
     return NextResponse.json({
       success: true,
       data: result,
+      source: 'AI: Vercel AI SDK with OpenAI/Anthropic support',
     });
   } catch (error) {
     console.error('Employment search error:', error);
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { firstName, lastName, name, company, industry, location, searchType, personName } = body;
+    const { firstName, lastName, name, state } = body;
 
     // Parse name
     let first = firstName;
@@ -57,51 +57,20 @@ export async function POST(request: NextRequest) {
       last = parts.slice(1).join(' ') || parts[0];
     }
 
-    switch (searchType) {
-      case 'company':
-        if (!company) {
-          return NextResponse.json(
-            { error: 'company is required for company employee search' },
-            { status: 400 }
-          );
-        }
-        const companyResult = await EmploymentHistory.searchCompanyEmployees(company);
-        return NextResponse.json({
-          success: true,
-          data: { type: 'company', ...companyResult },
-        });
-
-      case 'verify':
-        if (!personName || !company) {
-          return NextResponse.json(
-            { error: 'personName and company are required for verification' },
-            { status: 400 }
-          );
-        }
-        const verifyResult = await EmploymentHistory.verifyEmployment(personName, company);
-        return NextResponse.json({
-          success: true,
-          data: { type: 'verify', ...verifyResult },
-        });
-
-      default:
-        // Comprehensive employment search
-        if (!first || !last) {
-          return NextResponse.json(
-            { error: 'firstName and lastName are required' },
-            { status: 400 }
-          );
-        }
-        const result = await EmploymentHistory.search(first, last, {
-          currentCompany: company,
-          industry,
-          location,
-        });
-        return NextResponse.json({
-          success: true,
-          data: result,
-        });
+    if (!first || !last) {
+      return NextResponse.json(
+        { error: 'firstName and lastName are required' },
+        { status: 400 }
+      );
     }
+
+    const result = await AISearch.searchEmployment(first, last, state);
+
+    return NextResponse.json({
+      success: true,
+      data: result,
+      source: 'AI: Vercel AI SDK with OpenAI/Anthropic support',
+    });
   } catch (error) {
     console.error('Employment search error:', error);
     return NextResponse.json(

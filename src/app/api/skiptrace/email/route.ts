@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PhoneEmail, SocialMedia } from '@/lib/skiptrace';
+import { AISearch } from '@/lib/skiptrace/ai-search';
 
 export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
   const email = request.nextUrl.searchParams.get('email');
@@ -14,17 +15,12 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const result = await PhoneEmail.reverseEmail(email);
-    const socialSearch = await SocialMedia.searchByEmail(email);
+    const result = await AISearch.lookupEmail(email);
 
     return NextResponse.json({
       success: true,
-      data: {
-        parsed: result.parsed,
-        searchUrls: result.searchUrls,
-        verificationUrls: result.verificationUrls,
-        socialSearchUrls: socialSearch.searchLinks,
-      },
+      data: result,
+      source: 'AI: Vercel AI SDK with OpenAI/Anthropic support',
     });
   } catch (error) {
     console.error('Email lookup error:', error);
@@ -38,22 +34,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, firstName, lastName, domain } = body;
-
-    // If guessing emails for a person at a company
-    if (firstName && lastName && domain) {
-      const guessedEmails = PhoneEmail.guessEmails(firstName, lastName, domain);
-      return NextResponse.json({
-        success: true,
-        data: {
-          guessedEmails,
-          verificationUrls: [
-            { name: 'Hunter.io', url: 'https://hunter.io/email-verifier' },
-            { name: 'NeverBounce', url: 'https://neverbounce.com/email-verification' },
-          ],
-        },
-      });
-    }
+    const { email } = body;
 
     if (!email) {
       return NextResponse.json(
@@ -62,17 +43,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await PhoneEmail.reverseEmail(email);
-    const socialSearch = await SocialMedia.searchByEmail(email);
+    const result = await AISearch.lookupEmail(email);
 
     return NextResponse.json({
       success: true,
-      data: {
-        parsed: result.parsed,
-        searchUrls: result.searchUrls,
-        verificationUrls: result.verificationUrls,
-        socialSearchUrls: socialSearch.searchLinks,
-      },
+      data: result,
+      source: 'AI: Vercel AI SDK with OpenAI/Anthropic support',
     });
   } catch (error) {
     console.error('Email lookup error:', error);

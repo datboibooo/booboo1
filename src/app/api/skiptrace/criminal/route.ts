@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { CriminalRecords } from '@/lib/skiptrace';
+import { AISearch } from '@/lib/skiptrace/ai-search';
 
 export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
   const firstName = request.nextUrl.searchParams.get('firstName');
   const lastName = request.nextUrl.searchParams.get('lastName');
   const name = request.nextUrl.searchParams.get('name');
   const state = request.nextUrl.searchParams.get('state') || undefined;
-  const type = request.nextUrl.searchParams.get('type') || 'all';
 
   // Parse name
   let first = firstName;
@@ -27,31 +27,12 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const results: {
-      inmateSearch?: Awaited<ReturnType<typeof CriminalRecords.searchInmate>>;
-      sexOffenderSearch?: Awaited<ReturnType<typeof CriminalRecords.searchSexOffender>>;
-      warrantSearch?: Awaited<ReturnType<typeof CriminalRecords.searchWarrants>>;
-      backgroundCheckUrls?: ReturnType<typeof CriminalRecords.getBackgroundCheckUrls>;
-    } = {};
-
-    if (type === 'all' || type === 'inmate') {
-      results.inmateSearch = await CriminalRecords.searchInmate(first, last, state);
-    }
-
-    if (type === 'all' || type === 'sexoffender') {
-      results.sexOffenderSearch = await CriminalRecords.searchSexOffender(first, last, state);
-    }
-
-    if (type === 'all' || type === 'warrant') {
-      results.warrantSearch = await CriminalRecords.searchWarrants(first, last, state);
-    }
-
-    // Always include background check providers
-    results.backgroundCheckUrls = CriminalRecords.getBackgroundCheckUrls(`${first} ${last}`);
+    const result = await AISearch.searchCriminal(first, last, state);
 
     return NextResponse.json({
       success: true,
-      data: results,
+      data: result,
+      source: 'AI: Vercel AI SDK with OpenAI/Anthropic support',
     });
   } catch (error) {
     console.error('Criminal search error:', error);
@@ -65,7 +46,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { firstName, lastName, name, state, searchType } = body;
+    const { firstName, lastName, name, state } = body;
 
     // Parse name
     let first = firstName;
@@ -83,68 +64,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const fullName = `${first} ${last}`;
+    const result = await AISearch.searchCriminal(first, last, state);
 
-    switch (searchType) {
-      case 'inmate':
-        const inmateResult = await CriminalRecords.searchInmate(first, last, state);
-        return NextResponse.json({
-          success: true,
-          data: {
-            type: 'inmate',
-            ...inmateResult,
-          },
-        });
-
-      case 'sexoffender':
-        const sexOffenderResult = await CriminalRecords.searchSexOffender(first, last, state);
-        return NextResponse.json({
-          success: true,
-          data: {
-            type: 'sexoffender',
-            ...sexOffenderResult,
-          },
-        });
-
-      case 'warrant':
-        const warrantResult = await CriminalRecords.searchWarrants(first, last, state);
-        return NextResponse.json({
-          success: true,
-          data: {
-            type: 'warrant',
-            ...warrantResult,
-          },
-        });
-
-      case 'arrest':
-        const arrestUrls = CriminalRecords.getArrestUrls(fullName, state);
-        return NextResponse.json({
-          success: true,
-          data: {
-            type: 'arrest',
-            searchUrls: arrestUrls,
-          },
-        });
-
-      default:
-        // Comprehensive search
-        const [inmateSearch, sexOffenderSearch, warrantSearch] = await Promise.all([
-          CriminalRecords.searchInmate(first, last, state),
-          CriminalRecords.searchSexOffender(first, last, state),
-          CriminalRecords.searchWarrants(first, last, state),
-        ]);
-
-        return NextResponse.json({
-          success: true,
-          data: {
-            inmateSearch,
-            sexOffenderSearch,
-            warrantSearch,
-            arrestUrls: CriminalRecords.getArrestUrls(fullName, state),
-            backgroundCheckUrls: CriminalRecords.getBackgroundCheckUrls(fullName),
-          },
-        });
-    }
+    return NextResponse.json({
+      success: true,
+      data: result,
+      source: 'AI: Vercel AI SDK with OpenAI/Anthropic support',
+    });
   } catch (error) {
     console.error('Criminal search error:', error);
     return NextResponse.json(

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SkipTraceEngine } from '@/lib/skiptrace';
+import { AISearch } from '@/lib/skiptrace/ai-search';
 import type { PersonSearchParams } from '@/lib/skiptrace';
 
 export const runtime = 'nodejs';
@@ -31,14 +31,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const mode = body.mode || 'standard';
-    const results = await SkipTraceEngine.searchPerson(params, mode);
+    const results = await AISearch.searchPerson(params);
 
     return NextResponse.json({
       success: true,
       data: results,
       query: params,
-      mode,
+      source: 'AI: Vercel AI SDK with OpenAI/Anthropic support',
     });
   } catch (error) {
     console.error('Person search error:', error);
@@ -68,13 +67,20 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const mode = (searchParams.get('mode') as 'quick' | 'standard' | 'deep') || 'quick';
-  const results = await SkipTraceEngine.searchPerson(params, mode);
+  try {
+    const results = await AISearch.searchPerson(params);
 
-  return NextResponse.json({
-    success: true,
-    data: results,
-    query: params,
-    mode,
-  });
+    return NextResponse.json({
+      success: true,
+      data: results,
+      query: params,
+      source: 'AI: Vercel AI SDK with OpenAI/Anthropic support',
+    });
+  } catch (error) {
+    console.error('Person search error:', error);
+    return NextResponse.json(
+      { error: 'Failed to search person', details: String(error) },
+      { status: 500 }
+    );
+  }
 }

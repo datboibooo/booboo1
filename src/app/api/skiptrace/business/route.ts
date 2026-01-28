@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SkipTraceEngine, SECEdgar, StateCorporations } from '@/lib/skiptrace';
+import { AISearch } from '@/lib/skiptrace/ai-search';
 import type { BusinessSearchParams } from '@/lib/skiptrace';
 
 export const runtime = 'nodejs';
@@ -25,14 +25,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const mode = body.mode || 'standard';
-    const results = await SkipTraceEngine.searchBusiness(params, mode);
+    const results = await AISearch.searchBusiness(params);
 
     return NextResponse.json({
       success: true,
       data: results,
       query: params,
-      mode,
+      source: 'AI: Vercel AI SDK with OpenAI/Anthropic support',
     });
   } catch (error) {
     console.error('Business search error:', error);
@@ -48,23 +47,6 @@ export async function GET(request: NextRequest) {
 
   const name = searchParams.get('name');
   const state = searchParams.get('state') || undefined;
-  const cik = searchParams.get('cik');
-
-  // Direct SEC lookup by CIK
-  if (cik) {
-    const company = await SECEdgar.getCompanyDetails(cik);
-    if (company) {
-      const financials = await SECEdgar.getFinancials(cik);
-      return NextResponse.json({
-        success: true,
-        data: {
-          company,
-          financials,
-        },
-      });
-    }
-    return NextResponse.json({ error: 'Company not found' }, { status: 404 });
-  }
 
   if (!name) {
     return NextResponse.json(
@@ -73,13 +55,20 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const mode = (searchParams.get('mode') as 'quick' | 'standard' | 'deep') || 'quick';
-  const results = await SkipTraceEngine.searchBusiness({ name, state }, mode);
+  try {
+    const results = await AISearch.searchBusiness({ name, state });
 
-  return NextResponse.json({
-    success: true,
-    data: results,
-    query: { name, state },
-    mode,
-  });
+    return NextResponse.json({
+      success: true,
+      data: results,
+      query: { name, state },
+      source: 'AI: Vercel AI SDK with OpenAI/Anthropic support',
+    });
+  } catch (error) {
+    console.error('Business search error:', error);
+    return NextResponse.json(
+      { error: 'Failed to search business', details: String(error) },
+      { status: 500 }
+    );
+  }
 }
