@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { QuickSearch } from '@/components/skiptrace/quick-search';
 import {
   Search,
   User,
@@ -97,16 +98,26 @@ export default function SkipTracePage() {
       {/* Header */}
       <div className="border-b border-white/10 bg-[#0f0f11]/80 backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
-              <Search className="w-5 h-5 text-white" />
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
+                <Search className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold">SkipTrace Pro</h1>
+                <p className="text-sm text-white/50">Professional Investigation Tools</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-bold">SkipTrace Pro</h1>
-              <p className="text-sm text-white/50">Professional Investigation Tools</p>
+            <div className="hidden lg:block flex-1 max-w-xl">
+              <QuickSearch className="w-full" />
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Mobile Quick Search */}
+      <div className="lg:hidden border-b border-white/10 bg-[#0f0f11]/50 px-4 py-3">
+        <QuickSearch className="w-full" />
       </div>
 
       {/* Navigation Tabs */}
