@@ -12,6 +12,8 @@ import {
   User,
   Bookmark,
   Search,
+  List,
+  HelpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/supabase/auth-context";
@@ -25,7 +27,9 @@ const navItems = [
   { title: "SkipTrace", href: "/skiptrace", icon: Search },
   { title: "Leads", href: "/drip", icon: Zap },
   { title: "Saved", href: "/saved", icon: Bookmark },
+  { title: "Lists", href: "/lists", icon: List },
   { title: "Analytics", href: "/analytics", icon: BarChart3 },
+  { title: "Help", href: "/help", icon: HelpCircle },
   { title: "Settings", href: "/settings", icon: Settings },
 ];
 

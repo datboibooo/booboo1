@@ -113,14 +113,14 @@ export default function DripFeedPage() {
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
 
-  // Quick search suggestions for Florida home services
+  // Quick search suggestions
   const QUICK_SEARCHES = [
     { label: "Hot Leads", query: "hot", icon: Flame },
-    { label: "Roofing", query: "roofing", icon: Building2 },
-    { label: "HVAC", query: "hvac ac", icon: Building2 },
-    { label: "Pool Service", query: "pool", icon: Building2 },
-    { label: "Miami", query: "miami south florida", icon: MapPin },
-    { label: "Tampa", query: "tampa bay", icon: MapPin },
+    { label: "AI Startups", query: "AI artificial intelligence", icon: Sparkles },
+    { label: "Tech", query: "technology software", icon: Building2 },
+    { label: "Services", query: "services consulting", icon: Building2 },
+    { label: "Retail", query: "retail ecommerce", icon: Building2 },
+    { label: "Healthcare", query: "healthcare medical", icon: Building2 },
     { label: "No Video", query: "needs video", icon: Video },
   ];
 
@@ -279,7 +279,7 @@ export default function DripFeedPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `florida-leads-${new Date().toISOString().split("T")[0]}.csv`;
+    a.download = `leads-export-${new Date().toISOString().split("T")[0]}.csv`;
     a.click();
   };
 
@@ -300,9 +300,9 @@ export default function DripFeedPage() {
               <Droplets className="h-4 w-4 text-white" />
             </div>
             <div>
-              <h1 className="font-display text-xl font-bold">Florida Home Services</h1>
+              <h1 className="font-display text-xl font-bold">Lead Intelligence</h1>
               <p className="text-sm text-[--foreground-muted]">
-                {stats.total} businesses · {stats.noVideo} need video content
+                {stats.total > 0 ? `${stats.total} leads found` : "Search to discover leads"}
               </p>
             </div>
           </div>
@@ -348,7 +348,7 @@ export default function DripFeedPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by category, city, region... (e.g., 'roofing miami' or 'pool tampa')"
+              placeholder="Search by industry, location, signals... (e.g., 'AI startups' or 'tech services')"
               className="w-full h-10 pl-10 pr-4 rounded-xl bg-[--background-secondary] border border-[--border] text-sm placeholder:text-[--foreground-subtle] focus:outline-none focus:border-[--teal] transition-colors"
             />
             {searchQuery && (
@@ -442,9 +442,9 @@ export default function DripFeedPage() {
               <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-[--teal]/20 to-[--purple]/20 flex items-center justify-center mb-4">
                 <Search className="h-7 w-7 text-[--teal]" />
               </div>
-              <h3 className="font-semibold text-lg mb-1">Search for businesses</h3>
+              <h3 className="font-semibold text-lg mb-1">Discover high-intent leads</h3>
               <p className="text-sm text-[--foreground-muted] mb-6 max-w-md">
-                Search for Florida home service businesses by category, city, or region. Try "kitchen miami" or "roofing tampa"
+                Search for businesses by industry, location, or buying signals. Try "AI startups" or "healthcare tech"
               </p>
               <div className="flex flex-wrap gap-2 justify-center max-w-lg">
                 {QUICK_SEARCHES.map((qs) => (
