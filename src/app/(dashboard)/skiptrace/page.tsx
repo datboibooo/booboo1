@@ -1,8 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QuickSearch } from '@/components/skiptrace/quick-search';
+import { ResultDisplay, SearchLinksGrid } from '@/components/skiptrace/results-display';
+import { ReportExport, QuickExportButton } from '@/components/skiptrace/report-export';
+import { SearchHistoryPanel, HistoryButton, RecentSearchesDropdown, useSearchHistory } from '@/components/skiptrace/search-history';
 import {
   Search,
   User,
@@ -22,9 +25,14 @@ import {
   AlertTriangle,
   Plane,
   Scroll,
+  Users,
+  Briefcase,
+  MapPin,
+  Clock,
+  Download,
 } from 'lucide-react';
 
-type SearchTab = 'person' | 'business' | 'phone' | 'email' | 'vehicle' | 'property' | 'court' | 'licenses' | 'social' | 'criminal' | 'assets' | 'records';
+type SearchTab = 'person' | 'business' | 'phone' | 'email' | 'vehicle' | 'property' | 'court' | 'licenses' | 'social' | 'criminal' | 'assets' | 'records' | 'relatives' | 'employment' | 'address';
 
 interface SearchResult {
   success: boolean;
@@ -51,6 +59,10 @@ export default function SkipTracePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [results, setResults] = useState<SearchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [showExport, setShowExport] = useState(false);
+  const [lastSearchParams, setLastSearchParams] = useState<Record<string, string>>({});
+  const { addSearch } = useSearchHistory();
 
   const tabs: { id: SearchTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: 'person', label: 'Person', icon: User },
@@ -59,6 +71,9 @@ export default function SkipTracePage() {
     { id: 'email', label: 'Email', icon: Mail },
     { id: 'vehicle', label: 'Vehicle', icon: Car },
     { id: 'property', label: 'Property', icon: Home },
+    { id: 'relatives', label: 'Relatives', icon: Users },
+    { id: 'employment', label: 'Employment', icon: Briefcase },
+    { id: 'address', label: 'Address', icon: MapPin },
     { id: 'court', label: 'Court', icon: Scale },
     { id: 'criminal', label: 'Criminal', icon: AlertTriangle },
     { id: 'licenses', label: 'Licenses', icon: Award },
@@ -71,6 +86,7 @@ export default function SkipTracePage() {
     setIsLoading(true);
     setError(null);
     setResults(null);
+    setLastSearchParams(params);
 
     try {
       const response = await fetch(`/api/skiptrace/${endpoint}`, {
@@ -86,12 +102,40 @@ export default function SkipTracePage() {
       }
 
       setResults(data);
+
+      // Generate display name for history
+      let displayName = '';
+      if (params.firstName && params.lastName) {
+        displayName = `${params.firstName} ${params.lastName}`;
+      } else if (params.name) {
+        displayName = params.name;
+      } else if (params.phone) {
+        displayName = params.phone;
+      } else if (params.email) {
+        displayName = params.email;
+      } else if (params.vin) {
+        displayName = params.vin;
+      } else if (params.address) {
+        displayName = `${params.address}, ${params.city || ''} ${params.state || ''}`.trim();
+      } else {
+        displayName = Object.values(params).filter(v => v).join(' ');
+      }
+
+      // Add to search history
+      addSearch(endpoint, params, displayName.substring(0, 50));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Handle selecting a search from history
+  const handleSelectFromHistory = useCallback((type: string, query: Record<string, unknown>) => {
+    setActiveTab(type as SearchTab);
+    // Trigger search with the saved query
+    handleSearch(type, query as Record<string, string>);
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#0a0a0b] text-white">
@@ -111,9 +155,20 @@ export default function SkipTracePage() {
             <div className="hidden lg:block flex-1 max-w-xl">
               <QuickSearch className="w-full" />
             </div>
+            <div className="flex items-center gap-2">
+              <RecentSearchesDropdown onSelectSearch={handleSelectFromHistory} />
+              <HistoryButton onClick={() => setShowHistory(true)} />
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Search History Panel */}
+      <SearchHistoryPanel
+        isOpen={showHistory}
+        onClose={() => setShowHistory(false)}
+        onSelectSearch={handleSelectFromHistory}
+      />
 
       {/* Mobile Quick Search */}
       <div className="lg:hidden border-b border-white/10 bg-[#0f0f11]/50 px-4 py-3">
@@ -171,6 +226,9 @@ export default function SkipTracePage() {
                   {activeTab === 'criminal' && <CriminalSearchForm onSearch={handleSearch} isLoading={isLoading} />}
                   {activeTab === 'assets' && <AssetsSearchForm onSearch={handleSearch} isLoading={isLoading} />}
                   {activeTab === 'records' && <PublicRecordsSearchForm onSearch={handleSearch} isLoading={isLoading} />}
+                  {activeTab === 'relatives' && <RelativesSearchForm onSearch={handleSearch} isLoading={isLoading} />}
+                  {activeTab === 'employment' && <EmploymentSearchForm onSearch={handleSearch} isLoading={isLoading} />}
+                  {activeTab === 'address' && <AddressSearchForm onSearch={handleSearch} isLoading={isLoading} />}
                   {activeTab === 'social' && <SocialSearchForm onSearch={handleSearch} isLoading={isLoading} />}
                 </motion.div>
               </AnimatePresence>
@@ -180,6 +238,54 @@ export default function SkipTracePage() {
           {/* Results Panel */}
           <div className="lg:col-span-2">
             <div className="bg-[#131316] rounded-xl border border-white/10 min-h-[400px]">
+              {/* Results Header with Export */}
+              {results && !isLoading && (
+                <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                    <span className="text-sm text-white/70">Results found</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowExport(!showExport)}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-colors text-sm"
+                    >
+                      <Download className="w-4 h-4 text-cyan-400" />
+                      <span className="text-white/70">Export</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Export Panel */}
+              <AnimatePresence>
+                {showExport && results && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="border-b border-white/10 overflow-hidden"
+                  >
+                    <div className="p-4">
+                      <ReportExport
+                        data={{
+                          type: activeTab,
+                          subject: Object.values(lastSearchParams).filter(v => v).join(' '),
+                          timestamp: new Date().toISOString(),
+                          data: results.data,
+                          searchLinks: results.data.searchLinks?.map(l => ({
+                            name: l.name,
+                            url: l.url,
+                            category: l.category,
+                          })),
+                        }}
+                        onClose={() => setShowExport(false)}
+                      />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {isLoading && (
                 <div className="flex items-center justify-center h-[400px]">
                   <div className="text-center">
@@ -605,6 +711,136 @@ function PublicRecordsSearchForm({ onSearch, isLoading }: FormProps) {
   );
 }
 
+function RelativesSearchForm({ onSearch, isLoading }: FormProps) {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [address, setAddress] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSearch('relatives', { firstName, lastName, address, city, state });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <h3 className="text-lg font-semibold flex items-center gap-2">
+        <Users className="w-5 h-5 text-cyan-500" />
+        Relatives & Associates
+      </h3>
+      <div className="grid grid-cols-2 gap-3">
+        <Input label="First Name" value={firstName} onChange={setFirstName} placeholder="John" required />
+        <Input label="Last Name" value={lastName} onChange={setLastName} placeholder="Doe" required />
+      </div>
+      <Input label="Current Address" value={address} onChange={setAddress} placeholder="123 Main St" />
+      <div className="grid grid-cols-2 gap-3">
+        <Input label="City" value={city} onChange={setCity} placeholder="Miami" />
+        <Input label="State" value={state} onChange={setState} placeholder="FL" />
+      </div>
+      <p className="text-xs text-white/40">Find family members, neighbors, and business associates.</p>
+      <SearchButton isLoading={isLoading} />
+    </form>
+  );
+}
+
+function EmploymentSearchForm({ onSearch, isLoading }: FormProps) {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [company, setCompany] = useState('');
+  const [searchType, setSearchType] = useState('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSearch('employment', { firstName, lastName, company, searchType });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <h3 className="text-lg font-semibold flex items-center gap-2">
+        <Briefcase className="w-5 h-5 text-cyan-500" />
+        Employment History
+      </h3>
+      <div className="grid grid-cols-2 gap-3">
+        <Input label="First Name" value={firstName} onChange={setFirstName} placeholder="John" required />
+        <Input label="Last Name" value={lastName} onChange={setLastName} placeholder="Doe" required />
+      </div>
+      <Input label="Company" value={company} onChange={setCompany} placeholder="Known employer (optional)" />
+      <Select
+        label="Search Type"
+        value={searchType}
+        onChange={setSearchType}
+        options={[
+          { value: '', label: 'General Employment Search' },
+          { value: 'verify', label: 'Verify Employment' },
+          { value: 'company', label: 'Search Company Employees' },
+        ]}
+      />
+      <p className="text-xs text-white/40">Find work history via LinkedIn, SEC filings, and professional licenses.</p>
+      <SearchButton isLoading={isLoading} />
+    </form>
+  );
+}
+
+function AddressSearchForm({ onSearch, isLoading }: FormProps) {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [address, setAddress] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+  const [searchType, setSearchType] = useState('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchType === 'reverse' && address && city && state) {
+      onSearch('address', { address, city, state, searchType });
+    } else {
+      onSearch('address', { firstName, lastName, city, state });
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <h3 className="text-lg font-semibold flex items-center gap-2">
+        <MapPin className="w-5 h-5 text-cyan-500" />
+        Address History
+      </h3>
+      <Select
+        label="Search Type"
+        value={searchType}
+        onChange={setSearchType}
+        options={[
+          { value: '', label: 'Person Address History' },
+          { value: 'reverse', label: 'Reverse Address Lookup' },
+        ]}
+      />
+      {searchType === 'reverse' ? (
+        <>
+          <Input label="Street Address" value={address} onChange={setAddress} placeholder="123 Main St" required />
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="City" value={city} onChange={setCity} placeholder="Miami" required />
+            <Input label="State" value={state} onChange={setState} placeholder="FL" required />
+          </div>
+          <p className="text-xs text-white/40">Find all residents at this address.</p>
+        </>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="First Name" value={firstName} onChange={setFirstName} placeholder="John" required />
+            <Input label="Last Name" value={lastName} onChange={setLastName} placeholder="Doe" required />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Current City" value={city} onChange={setCity} placeholder="Miami" />
+            <Input label="State" value={state} onChange={setState} placeholder="FL" />
+          </div>
+          <p className="text-xs text-white/40">Find previous addresses for this person.</p>
+        </>
+      )}
+      <SearchButton isLoading={isLoading} />
+    </form>
+  );
+}
+
 function SocialSearchForm({ onSearch, isLoading }: FormProps) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -734,12 +970,16 @@ function SearchResults({ results, searchType }: { results: SearchResult; searchT
         </div>
       )}
 
-      {/* Businesses Found */}
-      {data.businesses && data.businesses.length > 0 && (
+      {/* Enhanced Result Display based on search type */}
+      <ResultDisplay type={searchType} data={data as Record<string, unknown>} />
+
+      {/* Legacy display for backwards compatibility with some search types */}
+      {/* Businesses Found - shown if not using enhanced display */}
+      {data.businesses && data.businesses.length > 0 && searchType !== 'business' && (
         <div className="space-y-3">
           <h4 className="text-sm font-medium text-white/80 flex items-center gap-2">
             <Building2 className="w-4 h-4" />
-            Businesses Found ({data.businesses.length})
+            Related Businesses ({data.businesses.length})
           </h4>
           <div className="space-y-2">
             {data.businesses.map((biz, i) => (
@@ -766,81 +1006,20 @@ function SearchResults({ results, searchType }: { results: SearchResult; searchT
         </div>
       )}
 
-      {/* Phone Info */}
-      {data.parsed && searchType === 'phone' && (
-        <div className="space-y-3">
-          <h4 className="text-sm font-medium text-white/80 flex items-center gap-2">
-            <Phone className="w-4 h-4" />
-            Phone Information
-          </h4>
-          <div className="p-4 bg-white/5 rounded-lg border border-white/10 space-y-2">
-            <p><span className="text-white/50">Formatted:</span> {String(data.parsed.formatted || 'N/A')}</p>
-            <p><span className="text-white/50">Area Code:</span> {String(data.parsed.areaCode || 'N/A')}</p>
-            {data.location && (
-              <p><span className="text-white/50">Location:</span> {data.location.city}, {data.location.state}</p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* VIN Decode */}
-      {data.decoded && searchType === 'vehicle' && (
-        <div className="space-y-3">
-          <h4 className="text-sm font-medium text-white/80 flex items-center gap-2">
-            <Car className="w-4 h-4" />
-            Vehicle Information
-          </h4>
-          {data.decoded.valid && data.decoded.data && (
-            <div className="p-4 bg-white/5 rounded-lg border border-white/10 space-y-2">
-              <p className="text-lg font-semibold">
-                {String(data.decoded.data.year)} {String(data.decoded.data.make)} {String(data.decoded.data.model)}
-              </p>
-              {data.decoded.data.trim ? <p><span className="text-white/50">Trim:</span> {String(data.decoded.data.trim)}</p> : null}
-              {data.decoded.data.bodyClass ? <p><span className="text-white/50">Body:</span> {String(data.decoded.data.bodyClass)}</p> : null}
-              {data.decoded.data.engineCylinders ? <p><span className="text-white/50">Engine:</span> {String(data.decoded.data.engineCylinders)} cylinders</p> : null}
-              {data.decoded.data.manufacturer ? <p><span className="text-white/50">Manufacturer:</span> {String(data.decoded.data.manufacturer)}</p> : null}
-            </div>
-          )}
-          {data.recalls && data.recalls.hasRecalls && (
-            <div className="p-4 bg-red-500/10 rounded-lg border border-red-500/30">
-              <p className="font-medium text-red-400 mb-2">Active Recalls ({data.recalls.recalls.length})</p>
-              {data.recalls.recalls.slice(0, 3).map((recall, i) => (
-                <div key={i} className="text-sm text-red-300/80 mb-2">
-                  <p className="font-medium">{recall.campaign}</p>
-                  <p className="text-xs">{recall.summary?.slice(0, 150)}...</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Search Links */}
+      {/* Search Links - Enhanced Grid */}
       {data.searchLinks && data.searchLinks.length > 0 && (
         <div className="space-y-3">
           <h4 className="text-sm font-medium text-white/80 flex items-center gap-2">
             <FileText className="w-4 h-4" />
             Search Resources ({data.searchLinks.length})
           </h4>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {data.searchLinks.map((link, i) => (
-              <a
-                key={i}
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-3 p-3 bg-white/5 rounded-lg border border-white/10 hover:border-cyan-500/30 hover:bg-cyan-500/5 transition-all group"
-              >
-                <ExternalLink className="w-4 h-4 text-cyan-400 group-hover:text-cyan-300" />
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm truncate">{link.name}</p>
-                  {(link.category || link.state) && (
-                    <p className="text-xs text-white/40">{link.category || link.state}</p>
-                  )}
-                </div>
-              </a>
-            ))}
-          </div>
+          <SearchLinksGrid
+            links={data.searchLinks.map(link => ({
+              name: link.name,
+              url: link.url,
+              category: link.category || link.state || 'General',
+            }))}
+          />
         </div>
       )}
     </div>
